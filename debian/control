@@ -1,0 +1,24 @@
+Source: dh-make-golang
+Section: devel
+Priority: extra
+Maintainer: pkg-go <pkg-go-maintainers@lists.alioth.debian.org>
+Uploaders: Michael Stapelberg <stapelberg@debian.org>
+Build-Depends: debhelper (>= 9),
+               dh-golang,
+               golang-go,
+               golang-golang-x-net-dev,
+               golang-golang-x-tools-dev,
+               git
+Standards-Version: 3.9.6
+Homepage: https://github.com/Debian/dh-make-golang
+Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-go/packages/golang-github-debian-dh-make-golang.git;a=summary
+Vcs-Git: git://anonscm.debian.org/pkg-go/packages/golang-github-debian-dh-make-golang.git
+
+Package: dh-make-golang
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, golang-go, git
+Recommends: git-buildpackage, mail-transport-agent
+Built-Using: ${misc:Built-Using}
+Description: tool that converts Go packages into Debian package source
+ This package allows you to specify a Go package and will create a Debian
+ package from that, following the pkg-go packaging guidelines.
