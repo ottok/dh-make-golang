@@ -21,5 +21,6 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, golang-go, git
 Recommends: git-buildpackage, mail-transport-agent
 Built-Using: ${misc:Built-Using}
 Description: tool that converts Go packages into Debian package source
- This package allows you to specify a Go package and will create a Debian
- package from that, following the pkg-go packaging guidelines.
+ dh-make-golang is a tool to automatically create Debian packaging for Go
+ packages. Its goal is to automate away as much of the work as possible when
+ creating a Debian package for a Go library package.
