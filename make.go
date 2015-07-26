@@ -32,14 +32,23 @@ var (
 	allowUnknownHoster = flag.Bool("allow_unknown_hoster",
 		false,
 		"The pkg-go naming conventions (see http://pkg-go.alioth.debian.org/packaging.html) use a canonical identifier for the hostname, and the mapping is hardcoded into dh-make-golang. In case you want to package a Go package living on an unknown hoster, you may set this flag to true and double-check that the resulting package name is sane. Contact pkg-go if unsure.")
+
+	pkgType = flag.String("type",
+		"",
+		"One of \"library\" or \"program\"")
 )
 
-func makeUpstreamSourceTarball(gopkg, debsrc string) (string, string, []string, error) {
-	var dependencies []string
+// TODO: refactor this function into multiple smaller ones. Currently all the
+// code is in this function only due to the os.RemoveAll(tempdir).
+func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, string, error) {
+	// dependencies is a map in order to de-duplicate multiple imports
+	// pointing into the same repository.
+	dependencies := make(map[string]bool)
+	autoPkgType := "library"
 
 	tempdir, err := ioutil.TempDir("", "dh-make-golang")
 	if err != nil {
-		return "", "", dependencies, err
+		return "", "", dependencies, autoPkgType, err
 	}
 	defer os.RemoveAll(tempdir)
 
@@ -62,7 +71,7 @@ func makeUpstreamSourceTarball(gopkg, debsrc string) (string, string, []string, 
 	}
 	if err := cmd.Run(); err != nil {
 		done <- true
-		return "", "", dependencies, err
+		return "", "", dependencies, autoPkgType, err
 	}
 	done <- true
 	fmt.Printf("\r")
@@ -80,25 +89,52 @@ func makeUpstreamSourceTarball(gopkg, debsrc string) (string, string, []string, 
 	f.Close()
 	base := filepath.Base(gopkg)
 	dir := filepath.Dir(gopkg)
-	cmd = exec.Command("tar", "cjf", tempfile, "--exclude-vcs", base)
+	cmd = exec.Command("tar", "cjf", tempfile, "--exclude-vcs", "--exclude=vendor", base)
 	cmd.Dir = filepath.Join(tempdir, "src", dir)
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return "", "", dependencies, err
+		return "", "", dependencies, autoPkgType, err
 	}
 
 	if _, err := os.Stat(filepath.Join(tempdir, "src", gopkg, ".git")); os.IsNotExist(err) {
-		return "", "", dependencies, fmt.Errorf("Not a git repository, dh-make-golang currently only supports git")
+		return "", "", dependencies, autoPkgType, fmt.Errorf("Not a git repository, dh-make-golang currently only supports git")
 	}
 
 	log.Printf("Determining upstream version number\n")
 
 	version, err := pkgVersionFromGit(filepath.Join(tempdir, "src", gopkg))
 	if err != nil {
-		return "", "", dependencies, err
+		return "", "", dependencies, autoPkgType, err
 	}
 
 	log.Printf("Package version is %q\n", version)
+
+	// If no import path defines a “main” package, we’re dealing with a
+	// library, otherwise likely a program.
+	log.Printf("Determining package type\n")
+	cmd = exec.Command("go", "list", "-f", "{{.ImportPath}} {{.Name}}", gopkg+"/...")
+	cmd.Stderr = os.Stderr
+	cmd.Env = []string{
+		fmt.Sprintf("GOPATH=%s", tempdir),
+		fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return "", "", dependencies, autoPkgType, err
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if strings.Contains(line, "/vendor/") {
+			continue
+		}
+		if strings.HasSuffix(line, " main") {
+			log.Printf("Assuming you are packaging a program (because %q defines a main package), use -type to override\n", line[:len(line)-len(" main")])
+			autoPkgType = "program"
+			break
+		}
+	}
 
 	log.Printf("Determining dependencies\n")
 
@@ -108,9 +144,9 @@ func makeUpstreamSourceTarball(gopkg, debsrc string) (string, string, []string, 
 		fmt.Sprintf("GOPATH=%s", tempdir),
 		fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
 	}
-	out, err := cmd.Output()
+	out, err = cmd.Output()
 	if err != nil {
-		return "", "", dependencies, err
+		return "", "", dependencies, autoPkgType, err
 	}
 
 	var godependencies []string
@@ -141,12 +177,9 @@ func makeUpstreamSourceTarball(gopkg, debsrc string) (string, string, []string, 
 	}
 	out, err = cmd.Output()
 	if err != nil {
-		return "", "", godependencies, err
+		return "", "", dependencies, autoPkgType, err
 	}
 
-	// debdependencies is a map in order to de-duplicate multiple imports
-	// pointing into the same repository.
-	debdependencies := make(map[string]bool)
 	for _, p := range strings.Split(string(out), "\n") {
 		if strings.HasSuffix(p, ": false") {
 			importpath := p[:len(p)-len(": false")]
@@ -154,21 +187,10 @@ func makeUpstreamSourceTarball(gopkg, debsrc string) (string, string, []string, 
 			if err != nil {
 				log.Printf("Could not determine repo path for import path %q: %v\n", importpath, err)
 			}
-			importdebsrc := debianNameFromGopkg(rr.Root)
-			if importdebsrc == debsrc {
-				continue
-			}
-			debdependencies[importdebsrc+"-dev"] = true
+			dependencies[debianNameFromGopkg(rr.Root, "library")+"-dev"] = true
 		}
 	}
-	debdependenciesSlice := make([]string, len(debdependencies))
-	i := 0
-	for root := range debdependencies {
-		debdependenciesSlice[i] = root
-		i++
-	}
-
-	return tempfile, version, debdependenciesSlice, nil
+	return tempfile, version, dependencies, autoPkgType, nil
 }
 
 func runGitCommandIn(dir string, arg ...string) error {
@@ -215,12 +237,31 @@ func createGitRepository(debsrc, gopkg, orig string) (string, error) {
 	cmd := exec.Command("gbp", "import-orig", "--pristine-tar", "--no-interactive", filepath.Join(wd, orig))
 	cmd.Dir = dir
 	cmd.Stderr = os.Stderr
-	return dir, cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return dir, err
+	}
+
+	if err := ioutil.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".pc\n"), 0644); err != nil {
+		return dir, err
+	}
+
+	if err := runGitCommandIn(dir, "add", ".gitignore"); err != nil {
+		return dir, err
+	}
+
+	if err := runGitCommandIn(dir, "commit", "-m", "Ignore quilt dir .pc via .gitignore"); err != nil {
+		return dir, err
+	}
+
+	return dir, nil
 }
 
 // This follows https://fedoraproject.org/wiki/PackagingDrafts/Go#Package_Names
-func debianNameFromGopkg(gopkg string) string {
+func debianNameFromGopkg(gopkg, t string) string {
 	parts := strings.Split(gopkg, "/")
+	if t == "program" {
+		return parts[len(parts)-1]
+	}
 	host := parts[0]
 	if host == "github.com" {
 		host = "github"
@@ -297,7 +338,7 @@ func writeTemplates(dir, gopkg, debsrc, debversion string, dependencies []string
 	defer f.Close()
 	fmt.Fprintf(f, "%s (%s) unstable; urgency=medium\n", debsrc, debversion)
 	fmt.Fprintf(f, "\n")
-	fmt.Fprintf(f, "  * Initial release (Closes: nnnn)\n")
+	fmt.Fprintf(f, "  * Initial release (Closes: TODO)\n")
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, " -- %s <%s>  %s\n",
 		getDebianName(),
@@ -335,8 +376,18 @@ func writeTemplates(dir, gopkg, debsrc, debversion string, dependencies []string
 	deps := append([]string{"${shlibs:Depends}", "${misc:Depends}", "golang-go"}, dependencies...)
 	fmt.Fprintf(f, "Depends: %s\n", strings.Join(deps, ",\n         "))
 	fmt.Fprintf(f, "Built-Using: ${misc:Built-Using}\n")
-	fmt.Fprintf(f, "Description: TODO: short description\n")
-	fmt.Fprintf(f, " TODO: long description\n")
+	description, err := getDescriptionForGopkg(gopkg)
+	if err != nil {
+		log.Printf("Could not determine description for %q: %v\n", gopkg, err)
+		description = "TODO: short description"
+	}
+	fmt.Fprintf(f, "Description: %s\n", description)
+	longdescription, err := getLongDescriptionForGopkg(gopkg)
+	if err != nil {
+		log.Printf("Could not determine long description for %q: %v\n", gopkg, err)
+		longdescription = "TODO: long description"
+	}
+	fmt.Fprintf(f, " %s\n", strings.Replace(strings.Replace(longdescription, "\n\n", "\n.\n", -1), "\n", "\n ", -1))
 
 	license, fulltext, err := getLicenseForGopkg(gopkg)
 	if err != nil {
@@ -349,12 +400,17 @@ func writeTemplates(dir, gopkg, debsrc, debversion string, dependencies []string
 		return err
 	}
 	defer f.Close()
+	_, copyright, err := getAuthorAndCopyrightForGopkg(gopkg)
+	if err != nil {
+		log.Printf("Could not determine copyright for %q: %v\n", gopkg, err)
+		copyright = "TODO"
+	}
 	fmt.Fprintf(f, "Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/\n")
 	fmt.Fprintf(f, "Upstream-Name: %s\n", filepath.Base(gopkg))
 	fmt.Fprintf(f, "Source: %s\n", websiteForGopkg(gopkg))
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "Files: *\n")
-	fmt.Fprintf(f, "Copyright: TODO\n")
+	fmt.Fprintf(f, "Copyright: %s\n", copyright)
 	fmt.Fprintf(f, "License: %s\n", license)
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "Files: debian/*\n")
@@ -414,9 +470,21 @@ func writeITP(gopkg, debsrc, debversion string) (string, error) {
 		license = "TODO"
 	}
 
+	author, _, err := getAuthorAndCopyrightForGopkg(gopkg)
+	if err != nil {
+		log.Printf("Could not determine author for %q: %v\n", gopkg, err)
+		author = "TODO"
+	}
+
+	description, err := getDescriptionForGopkg(gopkg)
+	if err != nil {
+		log.Printf("Could not determine description for %q: %v\n", gopkg, err)
+		description = "TODO"
+	}
+
 	fmt.Fprintf(f, "From: %q <%s>\n", getDebianName(), getDebianEmail())
 	fmt.Fprintf(f, "To: submit@bugs.debian.org\n")
-	fmt.Fprintf(f, "Subject: ITP: %s -- TODO\n", debsrc)
+	fmt.Fprintf(f, "Subject: ITP: %s -- %s\n", debsrc, description)
 	fmt.Fprintf(f, "Content-Type: text/plain; charset=utf-8\n")
 	fmt.Fprintf(f, "Content-Transfer-Encoding: 8bit\n")
 	fmt.Fprintf(f, "\n")
@@ -426,13 +494,20 @@ func writeITP(gopkg, debsrc, debversion string) (string, error) {
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "* Package name    : %s\n", debsrc)
 	fmt.Fprintf(f, "  Version         : %s\n", debversion)
-	fmt.Fprintf(f, "  Upstream Author : TODO\n")
+	fmt.Fprintf(f, "  Upstream Author : %s\n", author)
 	fmt.Fprintf(f, "* URL             : %s\n", websiteForGopkg(gopkg))
 	fmt.Fprintf(f, "* License         : %s\n", license)
 	fmt.Fprintf(f, "  Programming Lang: Go\n")
-	fmt.Fprintf(f, "  Description     : TODO\n")
+	fmt.Fprintf(f, "  Description     : %s\n", description)
 	fmt.Fprintf(f, "\n")
-	fmt.Fprintf(f, " TODO: long description\n")
+
+	longdescription, err := getLongDescriptionForGopkg(gopkg)
+	if err != nil {
+		log.Printf("Could not determine long description for %q: %v\n", gopkg, err)
+		longdescription = "TODO: long description"
+	}
+	fmt.Fprintf(f, " %s\n", strings.Replace(strings.Replace(longdescription, "\n\n", "\n.\n", -1), "\n", "\n ", -1))
+
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "TODO: perhaps reasoning\n")
 	return itpname, nil
@@ -468,10 +543,13 @@ func main() {
 	}
 
 	gopkg := flag.Arg(0)
-	debsrc := debianNameFromGopkg(gopkg)
+	debsrc := debianNameFromGopkg(gopkg, "library")
 
-	if _, err := os.Stat(debsrc); err == nil {
-		log.Fatalf("Output directory %q already exists, aborting\n", debsrc)
+	if strings.TrimSpace(*pkgType) != "" {
+		debsrc = debianNameFromGopkg(gopkg, *pkgType)
+		if _, err := os.Stat(debsrc); err == nil {
+			log.Fatalf("Output directory %q already exists, aborting\n", debsrc)
+		}
 	}
 
 	if strings.ToLower(gopkg) != gopkg {
@@ -515,9 +593,28 @@ func main() {
 		golangBinariesMu.Unlock()
 	}()
 
-	tempfile, version, dependencies, err := makeUpstreamSourceTarball(gopkg, debsrc)
+	tempfile, version, debdependencies, autoPkgType, err := makeUpstreamSourceTarball(gopkg)
 	if err != nil {
 		log.Fatalf("Could not create a tarball of the upstream source: %v\n", err)
+	}
+
+	if strings.TrimSpace(*pkgType) == "" {
+		*pkgType = autoPkgType
+		debsrc = debianNameFromGopkg(gopkg, *pkgType)
+	}
+
+	if _, err := os.Stat(debsrc); err == nil {
+		log.Fatalf("Output directory %q already exists, aborting\n", debsrc)
+	}
+
+	dependencies := make([]string, len(debdependencies))
+	i := 0
+	for root := range debdependencies {
+		if root == debsrc+"-dev" {
+			continue
+		}
+		dependencies[i] = root
+		i++
 	}
 
 	golangBinariesMu.RLock()
