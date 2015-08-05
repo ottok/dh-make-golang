@@ -84,12 +84,24 @@ func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, s
 		}
 	}
 
+	if _, err := os.Stat(filepath.Join(tempdir, "src", gopkg, "debian")); err == nil {
+		log.Printf("WARNING: ignoring debian/ directory that came with the upstream sources\n")
+	}
+
 	f, err := ioutil.TempFile("", "dh-make-golang")
 	tempfile := f.Name()
 	f.Close()
 	base := filepath.Base(gopkg)
 	dir := filepath.Dir(gopkg)
-	cmd = exec.Command("tar", "cjf", tempfile, "--exclude-vcs", "--exclude=vendor", base)
+	cmd = exec.Command(
+		"tar",
+		"cjf",
+		tempfile,
+		"--exclude-vcs",
+		"--exclude=Godeps",
+		"--exclude=vendor",
+		fmt.Sprintf("--exclude=%s/debian", base),
+		base)
 	cmd.Dir = filepath.Join(tempdir, "src", dir)
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -126,7 +138,7 @@ func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, s
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		if strings.Contains(line, "/vendor/") {
+		if strings.Contains(line, "/vendor/") || strings.Contains(line, "/Godeps/") {
 			continue
 		}
 		if strings.HasSuffix(line, " main") {
@@ -277,6 +289,8 @@ func debianNameFromGopkg(gopkg, t string) string {
 		host = "bitbucket"
 	} else if host == "bazil.org" {
 		host = "bazil"
+	} else if host == "pault.ag" {
+		host = "pault"
 	} else {
 		if *allowUnknownHoster {
 			suffix, _ := publicsuffix.PublicSuffix(host)
@@ -322,7 +336,7 @@ func websiteForGopkg(gopkg string) string {
 	return "TODO"
 }
 
-func writeTemplates(dir, gopkg, debsrc, debversion string, dependencies []string) error {
+func writeTemplates(dir, gopkg, debsrc, debbin, debversion string, dependencies []string) error {
 	if err := os.Mkdir(filepath.Join(dir, "debian"), 0755); err != nil {
 		return err
 	}
@@ -368,10 +382,10 @@ func writeTemplates(dir, gopkg, debsrc, debversion string, dependencies []string
 	fmt.Fprintf(f, "Build-Depends: %s\n", strings.Join(builddeps, ",\n               "))
 	fmt.Fprintf(f, "Standards-Version: 3.9.6\n")
 	fmt.Fprintf(f, "Homepage: %s\n", websiteForGopkg(gopkg))
-	fmt.Fprintf(f, "Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-go/packages/%s.git;a=summary\n", debsrc)
+	fmt.Fprintf(f, "Vcs-Browser: https://anonscm.debian.org/cgit/pkg-go/packages/%s.git\n", debsrc)
 	fmt.Fprintf(f, "Vcs-Git: git://anonscm.debian.org/pkg-go/packages/%s.git\n", debsrc)
 	fmt.Fprintf(f, "\n")
-	fmt.Fprintf(f, "Package: %s-dev\n", debsrc)
+	fmt.Fprintf(f, "Package: %s\n", debbin)
 	fmt.Fprintf(f, "Architecture: all\n")
 	deps := append([]string{"${shlibs:Depends}", "${misc:Depends}", "golang-go"}, dependencies...)
 	fmt.Fprintf(f, "Depends: %s\n", strings.Join(deps, ",\n         "))
@@ -602,6 +616,10 @@ func main() {
 		*pkgType = autoPkgType
 		debsrc = debianNameFromGopkg(gopkg, *pkgType)
 	}
+	debbin := debsrc + "-dev"
+	if *pkgType == "program" {
+		debbin = debsrc
+	}
 
 	if _, err := os.Stat(debsrc); err == nil {
 		log.Fatalf("Output directory %q already exists, aborting\n", debsrc)
@@ -618,8 +636,9 @@ func main() {
 	}
 
 	golangBinariesMu.RLock()
-	if golangBinaries[debsrc] {
-		log.Printf("WARNING: A package called %q is already in Debian! See https://tracker.debian.org/pkg/%s\n", debsrc, debsrc)
+	if golangBinaries[debbin] {
+		log.Printf("WARNING: A package called %q is already in Debian! See https://tracker.debian.org/pkg/%s\n",
+			debbin, debbin)
 	}
 	golangBinariesMu.RUnlock()
 
@@ -651,7 +670,7 @@ func main() {
 	}
 	golangBinariesMu.RUnlock()
 
-	if err := writeTemplates(dir, gopkg, debsrc, debversion, dependencies); err != nil {
+	if err := writeTemplates(dir, gopkg, debsrc, debbin, debversion, dependencies); err != nil {
 		log.Fatalf("Could not create debian/ from templates: %v\n", err)
 	}
 
