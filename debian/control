@@ -12,8 +12,8 @@ Build-Depends: debhelper (>= 9),
                git
 Standards-Version: 3.9.6
 Homepage: https://github.com/Debian/dh-make-golang
-Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-go/packages/golang-github-debian-dh-make-golang.git;a=summary
-Vcs-Git: git://anonscm.debian.org/pkg-go/packages/golang-github-debian-dh-make-golang.git
+Vcs-Browser: https://anonscm.debian.org/cgit/pkg-go/packages/dh-make-golang.git/
+Vcs-Git: git://anonscm.debian.org/pkg-go/packages/dh-make-golang.git
 
 Package: dh-make-golang
 Architecture: any
