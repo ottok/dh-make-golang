@@ -95,7 +95,7 @@ func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, s
 	dir := filepath.Dir(gopkg)
 	cmd = exec.Command(
 		"tar",
-		"cjf",
+		"cJf",
 		tempfile,
 		"--exclude-vcs",
 		"--exclude=Godeps",
@@ -138,11 +138,17 @@ func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, s
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		if strings.Contains(line, "/vendor/") || strings.Contains(line, "/Godeps/") {
+		if strings.Contains(line, "/vendor/") ||
+			strings.Contains(line, "/Godeps/") ||
+			strings.Contains(line, "/samples/") ||
+			strings.Contains(line, "/examples/") ||
+			strings.Contains(line, "/example/") {
 			continue
 		}
 		if strings.HasSuffix(line, " main") {
-			log.Printf("Assuming you are packaging a program (because %q defines a main package), use -type to override\n", line[:len(line)-len(" main")])
+			if strings.TrimSpace(*pkgType) == "" {
+				log.Printf("Assuming you are packaging a program (because %q defines a main package), use -type to override\n", line[:len(line)-len(" main")])
+			}
 			autoPkgType = "program"
 			break
 		}
@@ -175,6 +181,10 @@ func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, s
 		} else {
 			godependencies = append(godependencies, p)
 		}
+	}
+
+	if len(godependencies) == 0 {
+		return tempfile, version, dependencies, autoPkgType, nil
 	}
 
 	// Remove all packages which are in the standard lib.
@@ -301,7 +311,7 @@ func debianNameFromGopkg(gopkg, t string) string {
 		}
 	}
 	parts[0] = host
-	return "golang-" + strings.ToLower(strings.Join(parts, "-"))
+	return "golang-" + strings.ToLower(strings.Replace(strings.Join(parts, "-"), "_", "-", -1))
 }
 
 func getDebianName() string {
@@ -350,7 +360,7 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion string, dependencies 
 		return err
 	}
 	defer f.Close()
-	fmt.Fprintf(f, "%s (%s) unstable; urgency=medium\n", debsrc, debversion)
+	fmt.Fprintf(f, "%s (%s) UNRELEASED; urgency=medium\n", debsrc, debversion)
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "  * Initial release (Closes: TODO)\n")
 	fmt.Fprintf(f, "\n")
@@ -375,7 +385,7 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion string, dependencies 
 	// TODO: change this once we have a “golang” section.
 	fmt.Fprintf(f, "Section: devel\n")
 	fmt.Fprintf(f, "Priority: extra\n")
-	fmt.Fprintf(f, "Maintainer: pkg-go <pkg-go-maintainers@lists.alioth.debian.org>\n")
+	fmt.Fprintf(f, "Maintainer: Debian Go Packaging Team <pkg-go-maintainers@lists.alioth.debian.org>\n")
 	fmt.Fprintf(f, "Uploaders: %s <%s>\n", getDebianName(), getDebianEmail())
 	sort.Strings(dependencies)
 	builddeps := append([]string{"debhelper (>= 9)", "dh-golang", "golang-go"}, dependencies...)
@@ -384,12 +394,18 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion string, dependencies 
 	fmt.Fprintf(f, "Homepage: %s\n", websiteForGopkg(gopkg))
 	fmt.Fprintf(f, "Vcs-Browser: https://anonscm.debian.org/cgit/pkg-go/packages/%s.git\n", debsrc)
 	fmt.Fprintf(f, "Vcs-Git: git://anonscm.debian.org/pkg-go/packages/%s.git\n", debsrc)
+	fmt.Fprintf(f, "XS-Go-Import-Path: %s\n", gopkg)
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "Package: %s\n", debbin)
-	fmt.Fprintf(f, "Architecture: all\n")
-	deps := append([]string{"${shlibs:Depends}", "${misc:Depends}", "golang-go"}, dependencies...)
+	deps := []string{"${shlibs:Depends}", "${misc:Depends}"}
+	if *pkgType == "program" {
+		fmt.Fprintf(f, "Architecture: any\n")
+		fmt.Fprintf(f, "Built-Using: ${misc:Built-Using}\n")
+	} else {
+		fmt.Fprintf(f, "Architecture: all\n")
+		deps = append(append(deps, "golang-go"), dependencies...)
+	}
 	fmt.Fprintf(f, "Depends: %s\n", strings.Join(deps, ",\n         "))
-	fmt.Fprintf(f, "Built-Using: ${misc:Built-Using}\n")
 	description, err := getDescriptionForGopkg(gopkg)
 	if err != nil {
 		log.Printf("Could not determine description for %q: %v\n", gopkg, err)
@@ -401,7 +417,7 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion string, dependencies 
 		log.Printf("Could not determine long description for %q: %v\n", gopkg, err)
 		longdescription = "TODO: long description"
 	}
-	fmt.Fprintf(f, " %s\n", strings.Replace(strings.Replace(longdescription, "\n\n", "\n.\n", -1), "\n", "\n ", -1))
+	fmt.Fprintf(f, " %s\n", longdescription)
 
 	license, fulltext, err := getLicenseForGopkg(gopkg)
 	if err != nil {
@@ -441,8 +457,6 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion string, dependencies 
 	}
 	defer f.Close()
 	fmt.Fprintf(f, "#!/usr/bin/make -f\n")
-	fmt.Fprintf(f, "\n")
-	fmt.Fprintf(f, "export DH_GOPKG := %s\n", gopkg)
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "%%:\n")
 	fmt.Fprintf(f, "\tdh $@ --buildsystem=golang --with=golang\n")
@@ -501,6 +515,7 @@ func writeITP(gopkg, debsrc, debversion string) (string, error) {
 	fmt.Fprintf(f, "Subject: ITP: %s -- %s\n", debsrc, description)
 	fmt.Fprintf(f, "Content-Type: text/plain; charset=utf-8\n")
 	fmt.Fprintf(f, "Content-Transfer-Encoding: 8bit\n")
+	fmt.Fprintf(f, "X-Debbugs-CC: debian-devel@lists.debian.org, pkg-go-maintainers@lists.alioth.debian.org\n")
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "Package: wnpp\n")
 	fmt.Fprintf(f, "Severity: wishlist\n")
@@ -520,7 +535,7 @@ func writeITP(gopkg, debsrc, debversion string) (string, error) {
 		log.Printf("Could not determine long description for %q: %v\n", gopkg, err)
 		longdescription = "TODO: long description"
 	}
-	fmt.Fprintf(f, " %s\n", strings.Replace(strings.Replace(longdescription, "\n\n", "\n.\n", -1), "\n", "\n ", -1))
+	fmt.Fprintf(f, " %s\n", longdescription)
 
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "TODO: perhaps reasoning\n")
@@ -642,7 +657,7 @@ func main() {
 	}
 	golangBinariesMu.RUnlock()
 
-	orig := fmt.Sprintf("%s_%s.orig.tar.bz2", debsrc, version)
+	orig := fmt.Sprintf("%s_%s.orig.tar.xz", debsrc, version)
 	// We need to copy the file, merely renaming is not enough since the file
 	// might be on a different filesystem (/tmp often is a tmpfs).
 	if err := copyFile(tempfile, orig); err != nil {
@@ -683,7 +698,7 @@ func main() {
 	log.Printf("Packaging successfully created in %s\n", dir)
 	log.Printf("\n")
 	log.Printf("Resolve all TODOs in %s, then email it out:\n", itpname)
-	log.Printf("    sendmail -t -f < %s\n", itpname)
+	log.Printf("    sendmail -t < %s\n", itpname)
 	log.Printf("\n")
 	log.Printf("Resolve all the TODOs in debian/, find them using:\n")
 	log.Printf("    grep -r TODO debian\n")
