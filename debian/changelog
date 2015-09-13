@@ -1,3 +1,9 @@
+dh-make-golang (0.0~git20150913.0.1221041-1) unstable; urgency=medium
+
+  * New upstream snapshot.
+
+ -- Michael Stapelberg <stapelberg@debian.org>  Sun, 13 Sep 2015 18:31:23 +0200
+
 dh-make-golang (0.0~git20150803.0.bd09cd9-1) unstable; urgency=medium
 
   * New upstream snapshot. (Closes: #794454)
