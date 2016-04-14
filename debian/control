@@ -6,7 +6,7 @@ Uploaders: Michael Stapelberg <stapelberg@debian.org>
 Build-Depends: debhelper (>= 9),
                dh-golang,
                golang-go,
-               golang-blackfriday-dev | golang-github-russross-blackfriday-dev,
+               golang-github-russross-blackfriday-dev | golang-blackfriday-dev,
                golang-golang-x-net-dev,
                golang-golang-x-tools-dev,
                git
