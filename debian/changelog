@@ -1,3 +1,13 @@
+dh-make-golang (0.0~git20160414.0.c4f61b1-2) unstable; urgency=medium
+
+  [ Raphaël Hertzog ]
+  * Fix Build-Depends to list golang-github-russross-blackfriday-dev as first
+    alternative. Closes: #819472
+    This will ensure that the generated Built-Using field is again valid and
+    let dak accept new uploads (such as the currently missing arm64 build).
+
+ -- Michael Stapelberg <stapelberg@debian.org>  Thu, 14 Apr 2016 09:10:21 +0200
+
 dh-make-golang (0.0~git20160414.0.c4f61b1-1) unstable; urgency=medium
 
   * New upstream snapshot.
