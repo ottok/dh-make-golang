@@ -38,6 +38,26 @@ var (
 		"One of \"library\" or \"program\"")
 )
 
+func passthroughEnv() []string {
+	var relevantVariables = []string{
+		"HOME",
+		"PATH",
+		"HTTP_PROXY", "http_proxy",
+		"HTTPS_PROXY", "https_proxy",
+		"ALL_PROXY", "all_proxy",
+		"NO_PROXY", "no_proxy",
+		"GIT_PROXY_COMMAND",
+		"GIT_HTTP_PROXY_AUTHMETHOD",
+	}
+	var result []string
+	for _, variable := range relevantVariables {
+		if value, ok := os.LookupEnv(variable); ok {
+			result = append(result, fmt.Sprintf("%s=%s", variable, value))
+		}
+	}
+	return result
+}
+
 // TODO: refactor this function into multiple smaller ones. Currently all the
 // code is in this function only due to the os.RemoveAll(tempdir).
 func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, string, error) {
@@ -65,10 +85,10 @@ func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, s
 	// in the top level of that repository.
 	cmd := exec.Command("go", "get", "-d", "-t", gopkg+"/...")
 	cmd.Stderr = os.Stderr
-	cmd.Env = []string{
+	cmd.Env = append([]string{
 		fmt.Sprintf("GOPATH=%s", tempdir),
-		fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
-	}
+	}, passthroughEnv()...)
+
 	if err := cmd.Run(); err != nil {
 		done <- true
 		return "", "", dependencies, autoPkgType, err
@@ -82,6 +102,23 @@ func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, s
 		if err := runGitCommandIn(filepath.Join(tempdir, "src", gopkg), "reset", "--hard", *gitRevision); err != nil {
 			log.Fatalf("Could not check out git revision %q: %v\n", revision, err)
 		}
+
+		log.Printf("Refreshing %q\n", gopkg+"/...")
+		done := make(chan bool)
+		go progressSize("go get", filepath.Join(tempdir, "src"), done)
+
+		cmd := exec.Command("go", "get", "-d", "-t", gopkg+"/...")
+		cmd.Stderr = os.Stderr
+		cmd.Env = append([]string{
+			fmt.Sprintf("GOPATH=%s", tempdir),
+		}, passthroughEnv()...)
+
+		if err := cmd.Run(); err != nil {
+			done <- true
+			return "", "", dependencies, autoPkgType, err
+		}
+		done <- true
+		fmt.Printf("\r")
 	}
 
 	if _, err := os.Stat(filepath.Join(tempdir, "src", gopkg, "debian")); err == nil {
@@ -126,10 +163,10 @@ func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, s
 	log.Printf("Determining package type\n")
 	cmd = exec.Command("go", "list", "-f", "{{.ImportPath}} {{.Name}}", gopkg+"/...")
 	cmd.Stderr = os.Stderr
-	cmd.Env = []string{
+	cmd.Env = append([]string{
 		fmt.Sprintf("GOPATH=%s", tempdir),
-		fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
-	}
+	}, passthroughEnv()...)
+
 	out, err := cmd.Output()
 	if err != nil {
 		return "", "", dependencies, autoPkgType, err
@@ -158,10 +195,10 @@ func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, s
 
 	cmd = exec.Command("go", "list", "-f", "{{join .Imports \"\\n\"}}\n{{join .TestImports \"\\n\"}}\n{{join .XTestImports \"\\n\"}}", gopkg+"/...")
 	cmd.Stderr = os.Stderr
-	cmd.Env = []string{
+	cmd.Env = append([]string{
 		fmt.Sprintf("GOPATH=%s", tempdir),
-		fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
-	}
+	}, passthroughEnv()...)
+
 	out, err = cmd.Output()
 	if err != nil {
 		return "", "", dependencies, autoPkgType, err
@@ -192,11 +229,12 @@ func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, s
 	args = append(args, godependencies...)
 
 	cmd = exec.Command("go", args...)
+	cmd.Dir = filepath.Join(tempdir, "src", gopkg)
 	cmd.Stderr = os.Stderr
-	cmd.Env = []string{
+	cmd.Env = append([]string{
 		fmt.Sprintf("GOPATH=%s", tempdir),
-		fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
-	}
+	}, passthroughEnv()...)
+
 	out, err = cmd.Output()
 	if err != nil {
 		return "", "", dependencies, autoPkgType, err
@@ -236,12 +274,16 @@ func createGitRepository(debsrc, gopkg, orig string) (string, error) {
 		return dir, err
 	}
 
-	if err := runGitCommandIn(dir, "config", "user.name", getDebianName()); err != nil {
-		return dir, err
+	if debianName := getDebianName(); debianName != "TODO" {
+		if err := runGitCommandIn(dir, "config", "user.name", debianName); err != nil {
+			return dir, err
+		}
 	}
 
-	if err := runGitCommandIn(dir, "config", "user.email", getDebianEmail()); err != nil {
-		return dir, err
+	if debianEmail := getDebianEmail(); debianEmail != "TODO" {
+		if err := runGitCommandIn(dir, "config", "user.email", debianEmail); err != nil {
+			return dir, err
+		}
 	}
 
 	if err := runGitCommandIn(dir, "config", "push.default", "matching"); err != nil {
@@ -321,7 +363,7 @@ func getDebianName() string {
 	if name := strings.TrimSpace(os.Getenv("DEBNAME")); name != "" {
 		return name
 	}
-	if u, err := user.Current(); err == nil {
+	if u, err := user.Current(); err == nil && u.Name != "" {
 		return u.Name
 	}
 	return "TODO"
@@ -331,9 +373,11 @@ func getDebianEmail() string {
 	if email := strings.TrimSpace(os.Getenv("DEBEMAIL")); email != "" {
 		return email
 	}
-	if mailname, err := ioutil.ReadFile("/etc/mailname"); err == nil {
-		if u, err := user.Current(); err == nil {
-			return u.Name + "@" + strings.TrimSpace(string(mailname))
+	mailname, err := ioutil.ReadFile("/etc/mailname")
+	// By default, /etc/mailname contains "debian" which is not useful; check for ".".
+	if err == nil && strings.Contains(string(mailname), ".") {
+		if u, err := user.Current(); err == nil && u.Username != "" {
+			return u.Username + "@" + strings.TrimSpace(string(mailname))
 		}
 	}
 	return "TODO"
@@ -390,10 +434,10 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion string, dependencies 
 	sort.Strings(dependencies)
 	builddeps := append([]string{"debhelper (>= 9)", "dh-golang", "golang-go"}, dependencies...)
 	fmt.Fprintf(f, "Build-Depends: %s\n", strings.Join(builddeps, ",\n               "))
-	fmt.Fprintf(f, "Standards-Version: 3.9.6\n")
+	fmt.Fprintf(f, "Standards-Version: 3.9.7\n")
 	fmt.Fprintf(f, "Homepage: %s\n", websiteForGopkg(gopkg))
 	fmt.Fprintf(f, "Vcs-Browser: https://anonscm.debian.org/cgit/pkg-go/packages/%s.git\n", debsrc)
-	fmt.Fprintf(f, "Vcs-Git: git://anonscm.debian.org/pkg-go/packages/%s.git\n", debsrc)
+	fmt.Fprintf(f, "Vcs-Git: https://anonscm.debian.org/git/pkg-go/packages/%s.git\n", debsrc)
 	fmt.Fprintf(f, "XS-Go-Import-Path: %s\n", gopkg)
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "Package: %s\n", debbin)
