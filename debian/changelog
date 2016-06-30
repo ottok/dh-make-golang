@@ -1,3 +1,10 @@
+dh-make-golang (0.0~git20160414.0.c4f61b1-3) UNRELEASED; urgency=medium
+
+  * Team upload.
+  * Use a secure transport for the Vcs-Git and Vcs-Browser URL
+
+ -- Paul Tagliamonte <paultag@debian.org>  Wed, 29 Jun 2016 20:20:48 -0400
+
 dh-make-golang (0.0~git20160414.0.c4f61b1-2) unstable; urgency=medium
 
   [ Raphaël Hertzog ]
