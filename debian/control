@@ -17,7 +17,8 @@ Vcs-Git: https://anonscm.debian.org/git/pkg-go/packages/dh-make-golang.git
 
 Package: dh-make-golang
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, golang-go, git
+Depends: ${shlibs:Depends}, ${misc:Depends}, golang-go, git,
+         git-buildpackage, pristine-tar
 Recommends: git-buildpackage, mail-transport-agent
 Built-Using: ${misc:Built-Using}
 Description: tool that converts Go packages into Debian package source
