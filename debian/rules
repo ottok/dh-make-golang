@@ -1,6 +1,4 @@
 #!/usr/bin/make -f
 
-export DH_GOPKG := github.com/Debian/dh-make-golang
-
 %:
 	dh $@ --buildsystem=golang --with=golang
