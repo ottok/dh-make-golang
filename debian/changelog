@@ -1,13 +1,22 @@
-dh-make-golang (0.0~git20160414.0.c4f61b1-3) UNRELEASED; urgency=medium
+dh-make-golang (0.0~git20161120.0.71f5e23-1) unstable; urgency=medium
 
-  [ Nicolas Braud-Santoni ]
+  [ Dr. Tobias Quathamer ]
   * Team upload.
-  * Depend on gbp and pristine-tar (Closes: #819930)
+  * Imported Upstream version 0.0~git20161120.0.71f5e23
+  * Use debhelper v10
+  * Update team name
+  * Update to Standards-Version 3.9.8, no changes needed
+  * Use XS-Go-Import-Path in d/control
 
   [ Paul Tagliamonte ]
   * Use a secure transport for the Vcs-Git and Vcs-Browser URL
 
- -- Nicolas Braud-Santoni <nicolas@braud-santoni.eu>  Sun, 10 Jul 2016 01:57:31 +0200
+  [ Nicolas Braud-Santoni ]
+  * Depend on gbp and pristine-tar (Closes: #819930)
+  * Recommends fixup.
+    If git-buildpackage is a dependency, it should not be a recommends.
+
+ -- Dr. Tobias Quathamer <toddy@debian.org>  Tue, 29 Nov 2016 19:59:27 +0100
 
 dh-make-golang (0.0~git20160414.0.c4f61b1-2) unstable; urgency=medium
 
