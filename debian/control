@@ -15,6 +15,7 @@ Homepage: https://github.com/Debian/dh-make-golang
 Vcs-Browser: https://anonscm.debian.org/cgit/pkg-go/packages/dh-make-golang.git
 Vcs-Git: https://anonscm.debian.org/git/pkg-go/packages/dh-make-golang.git
 XS-Go-Import-Path: github.com/Debian/dh-make-golang
+Testsuite: autopkgtest-pkg-go
 
 Package: dh-make-golang
 Architecture: any

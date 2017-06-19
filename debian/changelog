@@ -1,3 +1,10 @@
+dh-make-golang (0.0~git20161120.0.71f5e23-2) UNRELEASED; urgency=medium
+
+  * Team upload.
+  * Add autopkgtest support by default. Also use it for this package.
+
+ -- Martín Ferrari <tincho@debian.org>  Mon, 19 Jun 2017 20:37:14 +0100
+
 dh-make-golang (0.0~git20161120.0.71f5e23-1) unstable; urgency=medium
 
   [ Dr. Tobias Quathamer ]
