@@ -5,7 +5,7 @@ Maintainer: Debian Go Packaging Team <pkg-go-maintainers@lists.alioth.debian.org
 Uploaders: Michael Stapelberg <stapelberg@debian.org>
 Build-Depends: debhelper (>= 10),
                dh-golang,
-               golang-go,
+               golang-any,
                golang-github-russross-blackfriday-dev | golang-blackfriday-dev,
                golang-golang-x-net-dev,
                golang-golang-x-tools-dev,
