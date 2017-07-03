@@ -1,3 +1,13 @@
+dh-make-golang (0.0~git20170703.0.5eaf198-1) unstable; urgency=medium
+
+  * New upstream version 0.0~git20170703.0.5eaf198
+    - Remove patch, has been applied upstream
+  * Use golang-any instead of golang-go
+  * Update debian/copyright
+  * Update Standards-Version to 4.0.0
+
+ -- Dr. Tobias Quathamer <toddy@debian.org>  Mon, 03 Jul 2017 13:05:46 +0200
+
 dh-make-golang (0.0~git20170702.0.e6ffd1d-1) unstable; urgency=medium
 
   [ Martín Ferrari ]
