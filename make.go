@@ -125,6 +125,28 @@ func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, s
 		log.Printf("WARNING: ignoring debian/ directory that came with the upstream sources\n")
 	}
 
+	vendorpath := filepath.Join(tempdir, "src", gopkg, "vendor")
+	if fi, err := os.Stat(vendorpath); err == nil && fi.IsDir() {
+		log.Printf("Deleting upstream vendor/ directory, installing remaining dependencies")
+		if err := os.RemoveAll(vendorpath); err != nil {
+			return "", "", dependencies, autoPkgType, err
+		}
+		done := make(chan bool)
+		go progressSize("go get", filepath.Join(tempdir, "src"), done)
+		cmd := exec.Command("go", "get", "-d", "-t", "./...")
+		cmd.Stderr = os.Stderr
+		cmd.Env = append([]string{
+			fmt.Sprintf("GOPATH=%s", tempdir),
+		}, passthroughEnv()...)
+		cmd.Dir = filepath.Join(tempdir, "src", gopkg)
+		if err := cmd.Run(); err != nil {
+			done <- true
+			return "", "", dependencies, autoPkgType, err
+		}
+		done <- true
+		fmt.Printf("\r")
+	}
+
 	f, err := ioutil.TempFile("", "dh-make-golang")
 	tempfile := f.Name()
 	f.Close()
@@ -136,7 +158,6 @@ func makeUpstreamSourceTarball(gopkg string) (string, string, map[string]bool, s
 		tempfile,
 		"--exclude-vcs",
 		"--exclude=Godeps",
-		"--exclude=vendor",
 		fmt.Sprintf("--exclude=%s/debian", base),
 		base)
 	cmd.Dir = filepath.Join(tempdir, "src", dir)
@@ -467,7 +488,7 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion string, dependencies 
 	sort.Strings(dependencies)
 	builddeps := append([]string{"debhelper (>= 10)", "dh-golang", "golang-any"}, dependencies...)
 	fmt.Fprintf(f, "Build-Depends: %s\n", strings.Join(builddeps, ",\n               "))
-	fmt.Fprintf(f, "Standards-Version: 3.9.8\n")
+	fmt.Fprintf(f, "Standards-Version: 4.0.0\n")
 	fmt.Fprintf(f, "Homepage: %s\n", websiteForGopkg(gopkg))
 	fmt.Fprintf(f, "Vcs-Browser: https://anonscm.debian.org/cgit/pkg-go/packages/%s.git\n", debsrc)
 	fmt.Fprintf(f, "Vcs-Git: https://anonscm.debian.org/git/pkg-go/packages/%s.git\n", debsrc)
@@ -512,7 +533,7 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion string, dependencies 
 		log.Printf("Could not determine copyright for %q: %v\n", gopkg, err)
 		copyright = "TODO"
 	}
-	fmt.Fprintf(f, "Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/\n")
+	fmt.Fprintf(f, "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/\n")
 	fmt.Fprintf(f, "Upstream-Name: %s\n", filepath.Base(gopkg))
 	fmt.Fprintf(f, "Source: %s\n", websiteForGopkg(gopkg))
 	fmt.Fprintf(f, "\n")
@@ -564,8 +585,8 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion string, dependencies 
 		}
 		defer f.Close()
 		fmt.Fprintf(f, "version=3\n")
-		fmt.Fprintf(f, `opts=filenamemangle=s/.+\/v?(\d\S*)\.tar\.gz/%s-\$1\.tar\.gz/,\\`+"\n", debsrc)
-		fmt.Fprintf(f, `uversionmangle=s/(\d)[_\.\-\+]?(RC|rc|pre|dev|beta|alpha)[.]?(\d*)$/\$1~\$2\$3/ \\`+"\n")
+		fmt.Fprintf(f, `opts=filenamemangle=s/.+\/v?(\d\S*)\.tar\.gz/%s-\$1\.tar\.gz/,\`+"\n", debsrc)
+		fmt.Fprintf(f, `uversionmangle=s/(\d)[_\.\-\+]?(RC|rc|pre|dev|beta|alpha)[.]?(\d*)$/\$1~\$2\$3/ \`+"\n")
 		fmt.Fprintf(f, `  https://%s/tags .*/v?(\d\S*)\.tar\.gz`+"\n", gopkg)
 	}
 
