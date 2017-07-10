@@ -19,7 +19,7 @@ Testsuite: autopkgtest-pkg-go
 
 Package: dh-make-golang
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, golang-go, git,
+Depends: ${shlibs:Depends}, ${misc:Depends}, golang-any, git,
          git-buildpackage, pristine-tar
 Recommends: mail-transport-agent
 Built-Using: ${misc:Built-Using}
