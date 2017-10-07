@@ -1,3 +1,13 @@
+dh-make-golang (0.0~git20170925.0.fd02c4a-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream version 0.0~git20170925.0.fd02c4a
+  * Use Priority: optional
+  * Update d/copyright
+  * Update Standards-Version to 4.1.1
+
+ -- Dr. Tobias Quathamer <toddy@debian.org>  Sat, 07 Oct 2017 16:34:52 +0200
+
 dh-make-golang (0.0~git20170703.0.5eaf198-2) unstable; urgency=medium
 
   * Team upload.
