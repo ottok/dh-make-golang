@@ -10,7 +10,7 @@ Build-Depends: debhelper (>= 10),
                golang-golang-x-net-dev,
                golang-golang-x-tools-dev,
                git
-Standards-Version: 4.0.0
+Standards-Version: 4.1.1
 Homepage: https://github.com/Debian/dh-make-golang
 Vcs-Browser: https://anonscm.debian.org/cgit/pkg-go/packages/dh-make-golang.git
 Vcs-Git: https://anonscm.debian.org/git/pkg-go/packages/dh-make-golang.git
