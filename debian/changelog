@@ -1,3 +1,11 @@
+dh-make-golang (0.0~git20171018.1df9d7a-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream version 0.0~git20171018.1df9d7a
+  * Wrap and sort d/control
+
+ -- Dr. Tobias Quathamer <toddy@debian.org>  Sun, 22 Oct 2017 12:42:14 +0200
+
 dh-make-golang (0.0~git20171007.f9dfad6-1) unstable; urgency=medium
 
   * Team upload.
