@@ -5,11 +5,11 @@ Maintainer: Debian Go Packaging Team <pkg-go-maintainers@lists.alioth.debian.org
 Uploaders: Michael Stapelberg <stapelberg@debian.org>
 Build-Depends: debhelper (>= 10),
                dh-golang,
+               git,
                golang-any,
                golang-github-russross-blackfriday-dev | golang-blackfriday-dev,
                golang-golang-x-net-dev,
-               golang-golang-x-tools-dev,
-               git
+               golang-golang-x-tools-dev
 Standards-Version: 4.1.1
 Homepage: https://github.com/Debian/dh-make-golang
 Vcs-Browser: https://anonscm.debian.org/cgit/pkg-go/packages/dh-make-golang.git
@@ -19,8 +19,12 @@ Testsuite: autopkgtest-pkg-go
 
 Package: dh-make-golang
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, golang-any, git,
-         git-buildpackage, pristine-tar
+Depends: git,
+         git-buildpackage,
+         golang-any,
+         pristine-tar,
+         ${misc:Depends},
+         ${shlibs:Depends}
 Recommends: mail-transport-agent
 Built-Using: ${misc:Built-Using}
 Description: tool that converts Go packages into Debian package source
