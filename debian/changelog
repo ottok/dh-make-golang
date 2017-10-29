@@ -1,3 +1,10 @@
+dh-make-golang (0.0~git20171018.1df9d7a-1~bpo9+1) stretch-backports; urgency=medium
+
+  * Team upload.
+  * Rebuild for stretch-backports.
+
+ -- Dr. Tobias Quathamer <toddy@debian.org>  Sun, 29 Oct 2017 07:20:46 +0100
+
 dh-make-golang (0.0~git20171018.1df9d7a-1) unstable; urgency=medium
 
   * Team upload.
