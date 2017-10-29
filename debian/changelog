@@ -1,3 +1,11 @@
+dh-make-golang (0.0~git20171025.977a3bb-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream version 0.0~git20171025.977a3bb
+  * Add golang-golang-x-sync-dev to dependencies
+
+ -- Dr. Tobias Quathamer <toddy@debian.org>  Sun, 29 Oct 2017 22:23:35 +0100
+
 dh-make-golang (0.0~git20171018.1df9d7a-1) unstable; urgency=medium
 
   * Team upload.
