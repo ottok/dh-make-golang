@@ -3,6 +3,7 @@ dh-make-golang (0.0~git20180104.6755e49-1) unstable; urgency=medium
   * Team upload.
   * New upstream snapshot.
   * Create manual section for search command.
+  * Create patch for tests and forward it upstream.
 
  -- Alexandre Viau <aviau@debian.org>  Sat, 06 Jan 2018 12:14:07 -0500
 
