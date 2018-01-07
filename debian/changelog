@@ -1,5 +1,6 @@
 dh-make-golang (0.0~git20180106.d9d27ff-1) unstable; urgency=medium
 
+  * Team upload.
   * Remove unused patches.
   * New upstream version.
   * Create patch for main arg parser.
