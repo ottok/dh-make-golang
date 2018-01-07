@@ -1,0 +1,48 @@
+Description: main: don't use flags
+Forwarded: https://github.com/Debian/dh-make-golang/pull/81
+Author: Alexandre Viau <aviau@debian.org>
+Last-Update: 2018-01-07
+
+--- a/main.go
++++ b/main.go
+@@ -1,25 +1,24 @@
+ package main
+ 
+ import (
+-	"flag"
+-	"os"
++    "os"
+ )
+ 
+ func main() {
+-	// Retrieve args and Shift binary name off argument list.
+-	args := os.Args[1:]
++    // Retrieve args and Shift binary name off argument list.
++    args := os.Args[1:]
+ 
+-	fs := flag.NewFlagSet("main", flag.ExitOnError)
+-	fs.Parse(args)
+-
+-	// Retrieve command name as first argument.
+-	cmd := fs.Arg(0)
+-
+-	switch cmd {
+-	case "search":
+-		execSearch(args[1:])
+-	default:
+-		execMake(args)
+-	}
++    // Retrieve command name as first argument.
++    cmd := ""
++    if (len(args) > 0) {
++        cmd = args[0]
++    }
++
++    switch cmd {
++    case "search":
++        execSearch(args[1:])
++    default:
++        execMake(args)
++    }
+ 
+ }
