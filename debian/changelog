@@ -1,4 +1,4 @@
-dh-make-golang (0.0~git20180104.6755e49-2) unstable; urgency=medium
+dh-make-golang (0.0~git20180106.d9d27ff-1) unstable; urgency=medium
 
   * Remove unused patches.
   * New upstream version.
