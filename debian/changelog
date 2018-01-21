@@ -1,3 +1,20 @@
+dh-make-golang (0.0~git20180106.d9d27ff-1) unstable; urgency=medium
+
+  * Team upload.
+  * Remove unused patches.
+  * New upstream version.
+
+ -- Alexandre Viau <aviau@debian.org>  Sun, 07 Jan 2018 15:14:23 -0500
+
+dh-make-golang (0.0~git20180104.6755e49-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream snapshot.
+  * Create manual section for search command.
+  * Create patch for tests and forward it upstream.
+
+ -- Alexandre Viau <aviau@debian.org>  Sat, 06 Jan 2018 12:14:07 -0500
+
 dh-make-golang (0.0~git20171025.977a3bb-1~bpo9+1) stretch-backports; urgency=medium
 
   * Team upload.
