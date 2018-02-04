@@ -1,3 +1,11 @@
+dh-make-golang (0.0~git20180129.37f630a-1) unstable; urgency=medium
+
+  * Team upload.
+  * Remove unused dont-use-flags.patch.
+  * New upstream version.
+
+ -- Alexandre Viau <aviau@debian.org>  Mon, 29 Jan 2018 12:01:43 -0500
+
 dh-make-golang (0.0~git20180106.d9d27ff-1~bpo9+1) stretch-backports; urgency=medium
 
   * Team upload.
