@@ -39,144 +39,92 @@ func passthroughEnv() []string {
 	return result
 }
 
-// TODO: refactor this function into multiple smaller ones. Currently all the
-// code is in this function only due to the os.RemoveAll(tempdir).
-func makeUpstreamSourceTarball(gopkg string, gitRevision string, pkgType string) (string, string, map[string]bool, string, error) {
-	// dependencies is a map in order to de-duplicate multiple imports
-	// pointing into the same repository.
-	dependencies := make(map[string]bool)
-	autoPkgType := "library"
+func findVendorDirs(dir string) ([]string, error) {
+	var vendorDirs []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info != nil && !info.IsDir() {
+			return nil // nothing to do for anything but directories
+		}
+		if info.Name() == ".git" ||
+			info.Name() == ".hg" ||
+			info.Name() == ".bzr" {
+			return filepath.SkipDir
+		}
+		if info.Name() == "vendor" {
+			rel, err := filepath.Rel(dir, path)
+			if err != nil {
+				return err
+			}
+			vendorDirs = append(vendorDirs, rel)
+		}
+		return nil
+	})
+	return vendorDirs, err
+}
 
-	tempdir, err := ioutil.TempDir("", "dh-make-golang")
+// upstream describes the upstream repo we are about to package.
+type upstream struct {
+	tarPath    string   // path to the generated orig tarball
+	version    string   // Debian package version number, e.g. 0.0~git20180204.1d24609-1
+	firstMain  string   // import path of the first main package within repo, if any
+	vendorDirs []string // all vendor sub directories, relative to the repo directory
+	repoDeps   []string // the repository paths of all dependencies (e.g. github.com/zyedidia/glob)
+}
+
+func (u *upstream) get(gopath, repo, rev string) error {
+	done := make(chan struct{})
+	defer close(done)
+	go progressSize("go get", filepath.Join(gopath, "src"), done)
+
+	rr, err := vcs.RepoRootForImportPath(repo, false)
 	if err != nil {
-		return "", "", dependencies, autoPkgType, err
+		return err
 	}
-	defer os.RemoveAll(tempdir)
-
-	log.Printf("Downloading %q\n", gopkg+"/...")
-	done := make(chan bool)
-	go progressSize("go get", filepath.Join(tempdir, "src"), done)
-
-	// As per https://groups.google.com/forum/#!topic/golang-nuts/N5apfenE4m4,
-	// the arguments to “go get” are packages, not repositories. Hence, we
-	// specify “gopkg/...” in order to cover all packages.
-	// As a concrete example, github.com/jacobsa/util is a repository we want
-	// to package into a single Debian package, and using “go get -d
-	// github.com/jacobsa/util” fails because there are no buildable go files
-	// in the top level of that repository.
-	cmd := exec.Command("go", "get", "-d", "-t", gopkg+"/...")
-	cmd.Stderr = os.Stderr
-	cmd.Env = append([]string{
-		fmt.Sprintf("GOPATH=%s", tempdir),
-	}, passthroughEnv()...)
-
-	if err := cmd.Run(); err != nil {
-		done <- true
-		return "", "", dependencies, autoPkgType, err
+	dir := filepath.Join(gopath, "src", rr.Root)
+	if rev != "" {
+		return rr.VCS.CreateAtRev(dir, rr.Repo, rev)
 	}
-	done <- true
-	fmt.Printf("\r")
+	return rr.VCS.Create(dir, rr.Repo)
+}
 
-	revision := strings.TrimSpace(gitRevision)
-	if revision != "" {
-		log.Printf("Checking out git revision %q\n", revision)
-		if err := runGitCommandIn(filepath.Join(tempdir, "src", gopkg), "reset", "--hard", gitRevision); err != nil {
-			log.Fatalf("Could not check out git revision %q: %v\n", revision, err)
-		}
-
-		log.Printf("Refreshing %q\n", gopkg+"/...")
-		done := make(chan bool)
-		go progressSize("go get", filepath.Join(tempdir, "src"), done)
-
-		cmd := exec.Command("go", "get", "-d", "-t", gopkg+"/...")
-		cmd.Stderr = os.Stderr
-		cmd.Env = append([]string{
-			fmt.Sprintf("GOPATH=%s", tempdir),
-		}, passthroughEnv()...)
-
-		if err := cmd.Run(); err != nil {
-			done <- true
-			return "", "", dependencies, autoPkgType, err
-		}
-		done <- true
-		fmt.Printf("\r")
-	}
-
-	if _, err := os.Stat(filepath.Join(tempdir, "src", gopkg, "debian")); err == nil {
-		log.Printf("WARNING: ignoring debian/ directory that came with the upstream sources\n")
-	}
-
-	vendorpath := filepath.Join(tempdir, "src", gopkg, "vendor")
-	if fi, err := os.Stat(vendorpath); err == nil && fi.IsDir() {
-		log.Printf("Deleting upstream vendor/ directory, installing remaining dependencies")
-		if err := os.RemoveAll(vendorpath); err != nil {
-			return "", "", dependencies, autoPkgType, err
-		}
-		done := make(chan bool)
-		go progressSize("go get", filepath.Join(tempdir, "src"), done)
-		cmd := exec.Command("go", "get", "-d", "-t", "./...")
-		cmd.Stderr = os.Stderr
-		cmd.Env = append([]string{
-			fmt.Sprintf("GOPATH=%s", tempdir),
-		}, passthroughEnv()...)
-		cmd.Dir = filepath.Join(tempdir, "src", gopkg)
-		if err := cmd.Run(); err != nil {
-			done <- true
-			return "", "", dependencies, autoPkgType, err
-		}
-		done <- true
-		fmt.Printf("\r")
-	}
-
+func (u *upstream) tar(gopath, repo string) error {
 	f, err := ioutil.TempFile("", "dh-make-golang")
-	tempfile := f.Name()
+	if err != nil {
+		return err
+	}
+	u.tarPath = f.Name()
 	f.Close()
-	base := filepath.Base(gopkg)
-	dir := filepath.Dir(gopkg)
-	cmd = exec.Command(
+	base := filepath.Base(repo)
+	dir := filepath.Dir(repo)
+	cmd := exec.Command(
 		"tar",
 		"cJf",
-		tempfile,
+		u.tarPath,
 		"--exclude=.git",
 		"--exclude=Godeps",
 		fmt.Sprintf("--exclude=%s/debian", base),
 		base)
-	cmd.Dir = filepath.Join(tempdir, "src", dir)
+	cmd.Dir = filepath.Join(gopath, "src", dir)
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return "", "", dependencies, autoPkgType, err
-	}
+	return cmd.Run()
+}
 
-	if _, err := os.Stat(filepath.Join(tempdir, "src", gopkg, ".git")); os.IsNotExist(err) {
-		return "", "", dependencies, autoPkgType, fmt.Errorf("Not a git repository, dh-make-golang currently only supports git")
-	}
-
-	log.Printf("Determining upstream version number\n")
-
-	version, err := pkgVersionFromGit(filepath.Join(tempdir, "src", gopkg))
-	if err != nil {
-		return "", "", dependencies, autoPkgType, err
-	}
-
-	log.Printf("Package version is %q\n", version)
-
-	// If no import path defines a “main” package, we’re dealing with a
-	// library, otherwise likely a program.
-	log.Printf("Determining package type\n")
-	cmd = exec.Command("go", "list", "-f", "{{.ImportPath}} {{.Name}}", gopkg+"/...")
+// findMains finds main packages within the repo (useful to auto-detect the
+// package type).
+func (u *upstream) findMains(gopath, repo string) error {
+	cmd := exec.Command("go", "list", "-f", "{{.ImportPath}} {{.Name}}", repo+"/...")
 	cmd.Stderr = os.Stderr
 	cmd.Env = append([]string{
-		fmt.Sprintf("GOPATH=%s", tempdir),
+		fmt.Sprintf("GOPATH=%s", gopath),
 	}, passthroughEnv()...)
-
 	out, err := cmd.Output()
 	if err != nil {
-		return "", "", dependencies, autoPkgType, err
+		return fmt.Errorf("%v: %v", cmd.Args, err)
 	}
-	for _, line := range strings.Split(string(out), "\n") {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		if strings.Contains(line, "/vendor/") ||
 			strings.Contains(line, "/Godeps/") ||
 			strings.Contains(line, "/samples/") ||
@@ -185,74 +133,143 @@ func makeUpstreamSourceTarball(gopkg string, gitRevision string, pkgType string)
 			continue
 		}
 		if strings.HasSuffix(line, " main") {
-			if strings.TrimSpace(pkgType) == "" {
-				log.Printf("Assuming you are packaging a program (because %q defines a main package), use -type to override\n", line[:len(line)-len(" main")])
-			}
-			autoPkgType = "program"
+			u.firstMain = strings.TrimSuffix(line, " main")
 			break
 		}
 	}
+	return nil
+}
 
+func (u *upstream) findDependencies(gopath, repo string) error {
 	log.Printf("Determining dependencies\n")
 
-	cmd = exec.Command("go", "list", "-f", "{{join .Imports \"\\n\"}}\n{{join .TestImports \"\\n\"}}\n{{join .XTestImports \"\\n\"}}", gopkg+"/...")
+	cmd := exec.Command("go", "list", "-f", "{{join .Imports \"\\n\"}}\n{{join .TestImports \"\\n\"}}\n{{join .XTestImports \"\\n\"}}", repo+"/...")
 	cmd.Stderr = os.Stderr
 	cmd.Env = append([]string{
-		fmt.Sprintf("GOPATH=%s", tempdir),
+		fmt.Sprintf("GOPATH=%s", gopath),
 	}, passthroughEnv()...)
 
-	out, err = cmd.Output()
+	out, err := cmd.Output()
 	if err != nil {
-		return "", "", dependencies, autoPkgType, err
+		return fmt.Errorf("%v: %v", cmd.Args, err)
 	}
 
-	var godependencies []string
-	for _, p := range strings.Split(string(out), "\n") {
-		if strings.TrimSpace(p) == "" {
-			continue
+	godependencies := make(map[string]bool)
+	for _, p := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if p == "" {
+			continue // skip separators between import types
 		}
 		// Strip packages that are included in the repository we are packaging.
-		if strings.HasPrefix(p, gopkg) {
+		if strings.HasPrefix(p, repo+"/") || p == repo {
 			continue
 		}
 		if p == "C" {
 			// TODO: maybe parse the comments to figure out C deps from pkg-config files?
 		} else {
-			godependencies = append(godependencies, p)
+			godependencies[p] = true
 		}
 	}
 
 	if len(godependencies) == 0 {
-		return tempfile, version, dependencies, autoPkgType, nil
+		return nil
 	}
 
 	// Remove all packages which are in the standard lib.
-	args := []string{"list", "-f", "{{.ImportPath}}: {{.Standard}}"}
-	args = append(args, godependencies...)
-
-	cmd = exec.Command("go", args...)
-	cmd.Dir = filepath.Join(tempdir, "src", gopkg)
+	cmd = exec.Command("go", "list", "std")
+	cmd.Dir = filepath.Join(gopath, "src", repo)
 	cmd.Stderr = os.Stderr
 	cmd.Env = append([]string{
-		fmt.Sprintf("GOPATH=%s", tempdir),
+		fmt.Sprintf("GOPATH=%s", gopath),
 	}, passthroughEnv()...)
 
 	out, err = cmd.Output()
 	if err != nil {
-		return "", "", dependencies, autoPkgType, err
+		return fmt.Errorf("%v: %v", cmd.Args, err)
 	}
 
-	for _, p := range strings.Split(string(out), "\n") {
-		if strings.HasSuffix(p, ": false") {
-			importpath := p[:len(p)-len(": false")]
-			rr, err := vcs.RepoRootForImportPath(importpath, false)
-			if err != nil {
-				log.Printf("Could not determine repo path for import path %q: %v\n", importpath, err)
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		delete(godependencies, line)
+	}
+
+	// Resolve all packages to the root of their repository.
+	roots := make(map[string]bool)
+	for dep := range godependencies {
+		rr, err := vcs.RepoRootForImportPath(dep, false)
+		if err != nil {
+			log.Printf("Could not determine repo path for import path %q: %v\n", dep, err)
+			continue
+		}
+
+		roots[rr.Root] = true
+	}
+
+	u.repoDeps = make([]string, 0, len(godependencies))
+	for root := range roots {
+		u.repoDeps = append(u.repoDeps, root)
+	}
+
+	return nil
+}
+
+func makeUpstreamSourceTarball(repo, revision string) (*upstream, error) {
+	gopath, err := ioutil.TempDir("", "dh-make-golang")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(gopath)
+	repoDir := filepath.Join(gopath, "src", repo)
+
+	var u upstream
+
+	log.Printf("Downloading %q\n", repo+"/...")
+	if err := u.get(gopath, repo, revision); err != nil {
+		return nil, err
+	}
+
+	// Verify early this repository uses git (we call pkgVersionFromGit later):
+	if _, err := os.Stat(filepath.Join(repoDir, ".git")); os.IsNotExist(err) {
+		return nil, fmt.Errorf("Not a git repository, dh-make-golang currently only supports git")
+	}
+
+	if _, err := os.Stat(filepath.Join(repoDir, "debian")); err == nil {
+		log.Printf("WARNING: ignoring debian/ directory that came with the upstream sources\n")
+	}
+
+	u.vendorDirs, err = findVendorDirs(repoDir)
+	if err != nil {
+		return nil, err
+	}
+	if len(u.vendorDirs) > 0 {
+		log.Printf("Deleting upstream vendor/ directories")
+		for _, dir := range u.vendorDirs {
+			if err := os.RemoveAll(filepath.Join(repoDir, dir)); err != nil {
+				return nil, err
 			}
-			dependencies[rr.Root] = true
 		}
 	}
-	return tempfile, version, dependencies, autoPkgType, nil
+
+	log.Printf("Determining upstream version number\n")
+
+	u.version, err = pkgVersionFromGit(repoDir)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("Package version is %q\n", u.version)
+
+	if err := u.findMains(gopath, repo); err != nil {
+		return nil, err
+	}
+
+	if err := u.findDependencies(gopath, repo); err != nil {
+		return nil, err
+	}
+
+	if err := u.tar(gopath, repo); err != nil {
+		return nil, err
+	}
+
+	return &u, nil
 }
 
 func runGitCommandIn(dir string, arg ...string) error {
@@ -391,6 +408,8 @@ func debianNameFromGopkg(gopkg, t string, allowUnknownHoster bool) string {
 		host = "pault"
 	} else if host == "howett.net" {
 		host = "howett"
+	} else if host == "go4.org" {
+		host = "go4"
 	} else {
 		if allowUnknownHoster {
 			suffix, _ := publicsuffix.PublicSuffix(host)
@@ -431,7 +450,7 @@ func getDebianEmail() string {
 	return "TODO"
 }
 
-func writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType string, dependencies []string) error {
+func writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType string, dependencies []string, vendorDirs []string) error {
 	if err := os.Mkdir(filepath.Join(dir, "debian"), 0755); err != nil {
 		return err
 	}
@@ -459,7 +478,7 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType string, depe
 		return err
 	}
 	defer f.Close()
-	fmt.Fprintf(f, "10\n")
+	fmt.Fprintf(f, "11\n")
 
 	f, err = os.Create(filepath.Join(dir, "debian", "control"))
 	if err != nil {
@@ -473,9 +492,9 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType string, depe
 	fmt.Fprintf(f, "Maintainer: Debian Go Packaging Team <pkg-go-maintainers@lists.alioth.debian.org>\n")
 	fmt.Fprintf(f, "Uploaders: %s <%s>\n", getDebianName(), getDebianEmail())
 	sort.Strings(dependencies)
-	builddeps := append([]string{"debhelper (>= 10)", "dh-golang", "golang-any"}, dependencies...)
+	builddeps := append([]string{"debhelper (>= 11)", "dh-golang", "golang-any"}, dependencies...)
 	fmt.Fprintf(f, "Build-Depends: %s\n", strings.Join(builddeps, ",\n               "))
-	fmt.Fprintf(f, "Standards-Version: 4.1.1\n")
+	fmt.Fprintf(f, "Standards-Version: 4.1.3\n")
 	fmt.Fprintf(f, "Homepage: %s\n", getHomepageForGopkg(gopkg))
 	fmt.Fprintf(f, "Vcs-Browser: https://anonscm.debian.org/cgit/pkg-go/packages/%s.git\n", debsrc)
 	fmt.Fprintf(f, "Vcs-Git: https://anonscm.debian.org/git/pkg-go/packages/%s.git\n", debsrc)
@@ -483,10 +502,11 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType string, depe
 	fmt.Fprintf(f, "Testsuite: autopkgtest-pkg-go\n")
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "Package: %s\n", debbin)
-	deps := []string{"${shlibs:Depends}", "${misc:Depends}"}
+	deps := []string{"${misc:Depends}"}
 	if pkgType == "program" {
 		fmt.Fprintf(f, "Architecture: any\n")
 		fmt.Fprintf(f, "Built-Using: ${misc:Built-Using}\n")
+		deps = append(deps, "${shlibs:Depends}")
 	} else {
 		fmt.Fprintf(f, "Architecture: all\n")
 		deps = append(deps, dependencies...)
@@ -524,7 +544,11 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType string, depe
 	fmt.Fprintf(f, "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/\n")
 	fmt.Fprintf(f, "Upstream-Name: %s\n", filepath.Base(gopkg))
 	fmt.Fprintf(f, "Source: %s\n", getHomepageForGopkg(gopkg))
-	fmt.Fprintf(f, "Files-Excluded: vendor Godeps/_workspace\n")
+	fmt.Fprintf(f, "Files-Excluded:\n")
+	for _, dir := range vendorDirs {
+		fmt.Fprintf(f, "  %s\n", dir)
+	}
+	fmt.Fprintf(f, "  Godeps/_workspace\n")
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "Files: *\n")
 	fmt.Fprintf(f, "Copyright: %s\n", copyright)
@@ -545,6 +569,10 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType string, depe
 	defer f.Close()
 	fmt.Fprintf(f, "#!/usr/bin/make -f\n")
 	fmt.Fprintf(f, "\n")
+	if pkgType == "program" {
+		fmt.Fprintf(f, "override_dh_auto_install:\n")
+		fmt.Fprintf(f, "\tdh_auto_install -- --no-source\n")
+	}
 	fmt.Fprintf(f, "%%:\n")
 	fmt.Fprintf(f, "\tdh $@ --buildsystem=golang --with=golang\n")
 
@@ -658,8 +686,22 @@ func copyFile(src, dest string) error {
 	return output.Close()
 }
 
-func execMake(args []string) {
+func execMake(args []string, usage func()) {
 	fs := flag.NewFlagSet("make", flag.ExitOnError)
+	if usage != nil {
+		fs.Usage = usage
+	} else {
+		fs.Usage = func() {
+			fmt.Fprintf(os.Stderr, "Usage: %s [make] <go-package-importpath>\n", os.Args[0])
+			fmt.Fprintf(os.Stderr, "Example: %s make golang.org/x/oauth2\n", os.Args[0])
+			fmt.Fprintf(os.Stderr, "\n")
+			fmt.Fprintf(os.Stderr, "%s will create new files and directories in the current working directory.\n", os.Args[0])
+			fmt.Fprintf(os.Stderr, "%s will connect to the internet to download the specified Go package.\n", os.Args[0])
+			fmt.Fprintf(os.Stderr, "\n")
+			fmt.Fprintf(os.Stderr, "Flags:\n")
+			fs.PrintDefaults()
+		}
+	}
 
 	var gitRevision string
 	fs.StringVar(&gitRevision,
@@ -671,7 +713,7 @@ func execMake(args []string) {
 	fs.BoolVar(&allowUnknownHoster,
 		"allow_unknown_hoster",
 		false,
-		"The pkg-go naming conventions (see http://pkg-go.alioth.debian.org/packaging.html) use a canonical identifier for the hostname, and the mapping is hardcoded into dh-make-golang. In case you want to package a Go package living on an unknown hoster, you may set this flag to true and double-check that the resulting package name is sane. Contact pkg-go if unsure.")
+		"The pkg-go naming conventions (see https://pkg-go.alioth.debian.org/packaging.html) use a canonical identifier for the hostname, and the mapping is hardcoded into dh-make-golang. In case you want to package a Go package living on an unknown hoster, you may set this flag to true and double-check that the resulting package name is sane. Contact pkg-go if unsure.")
 
 	var pkgType string
 	fs.StringVar(&pkgType,
@@ -685,19 +727,21 @@ func execMake(args []string) {
 	}
 
 	if fs.NArg() < 1 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <go-package-name>\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Example: %s golang.org/x/oauth2\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "\n")
-		fmt.Fprintf(os.Stderr, "%s will create new files and directories in the current working directory.\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "%s will connect to the internet to download the specified Go package and its dependencies.\n", os.Args[0])
+		fs.Usage()
 		os.Exit(1)
 	}
 
+	gitRevision = strings.TrimSpace(gitRevision)
 	gopkg := fs.Arg(0)
 
 	// Ensure the specified argument is a Go package import path.
-	if _, err := vcs.RepoRootForImportPath(gopkg, false); err != nil {
+	rr, err := vcs.RepoRootForImportPath(gopkg, false)
+	if err != nil {
 		log.Fatalf("Verifying arguments: %v — did you specify a Go package import path?", err)
+	}
+	if gopkg != rr.Root {
+		log.Printf("Continuing with repository root %q instead of specified import path %q (repositories are the unit of packaging in Debian)", rr.Root, gopkg)
+		gopkg = rr.Root
 	}
 
 	debsrc := debianNameFromGopkg(gopkg, "library", allowUnknownHoster)
@@ -731,14 +775,19 @@ func execMake(args []string) {
 		golangBinaries, err = getGolangBinaries()
 		return err
 	})
-	tempfile, version, godependencies, autoPkgType, err := makeUpstreamSourceTarball(gopkg, gitRevision, pkgType)
+	u, err := makeUpstreamSourceTarball(gopkg, gitRevision)
 	if err != nil {
 		log.Fatalf("Could not create a tarball of the upstream source: %v\n", err)
 	}
 
 	if strings.TrimSpace(pkgType) == "" {
-		pkgType = autoPkgType
-		debsrc = debianNameFromGopkg(gopkg, pkgType, allowUnknownHoster)
+		if u.firstMain != "" {
+			log.Printf("Assuming you are packaging a program (because %q defines a main package), use -type to override\n", u.firstMain)
+			pkgType = "program"
+			debsrc = debianNameFromGopkg(gopkg, pkgType, allowUnknownHoster)
+		} else {
+			pkgType = "library"
+		}
 	}
 	debbin := debsrc + "-dev"
 	if pkgType == "program" {
@@ -747,15 +796,6 @@ func execMake(args []string) {
 
 	if _, err := os.Stat(debsrc); err == nil {
 		log.Fatalf("Output directory %q already exists, aborting\n", debsrc)
-	}
-
-	// TODO: move this into makeUpstreamSourceTarball
-	dependencies := make([]string, 0, len(godependencies))
-	for dep := range godependencies {
-		if dep == gopkg {
-			continue
-		}
-		dependencies = append(dependencies, dep)
 	}
 
 	if err := eg.Wait(); err != nil {
@@ -767,25 +807,25 @@ func execMake(args []string) {
 			debbin, debbin)
 	}
 
-	orig := fmt.Sprintf("%s_%s.orig.tar.xz", debsrc, version)
+	orig := fmt.Sprintf("%s_%s.orig.tar.xz", debsrc, u.version)
 	// We need to copy the file, merely renaming is not enough since the file
 	// might be on a different filesystem (/tmp often is a tmpfs).
-	if err := copyFile(tempfile, orig); err != nil {
-		log.Fatalf("Could not rename orig tarball from %q to %q: %v\n", tempfile, orig, err)
+	if err := copyFile(u.tarPath, orig); err != nil {
+		log.Fatalf("Could not rename orig tarball from %q to %q: %v\n", u.tarPath, orig, err)
 	}
-	if err := os.Remove(tempfile); err != nil {
-		log.Printf("Could not remove tempfile %q: %v\n", tempfile, err)
+	if err := os.Remove(u.tarPath); err != nil {
+		log.Printf("Could not remove tempfile %q: %v\n", u.tarPath, err)
 	}
 
-	debversion := version + "-1"
+	debversion := u.version + "-1"
 
 	dir, err := createGitRepository(debsrc, gopkg, orig)
 	if err != nil {
 		log.Fatalf("Could not create git repository: %v\n", err)
 	}
 
-	debdependencies := make([]string, 0, len(dependencies))
-	for _, dep := range dependencies {
+	debdependencies := make([]string, 0, len(u.repoDeps))
+	for _, dep := range u.repoDeps {
 		if len(golangBinaries) == 0 {
 			// fall back to heuristic
 			debdependencies = append(debdependencies, debianNameFromGopkg(dep, "library", allowUnknownHoster)+"-dev")
@@ -799,7 +839,7 @@ func execMake(args []string) {
 		debdependencies = append(debdependencies, bin)
 	}
 
-	if err := writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType, debdependencies); err != nil {
+	if err := writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType, debdependencies, u.vendorDirs); err != nil {
 		log.Fatalf("Could not create debian/ from templates: %v\n", err)
 	}
 

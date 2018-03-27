@@ -20,7 +20,7 @@ func getGolangBinaries() (map[string]string, error) {
 
 	resp, err := http.Get(golangBinariesURL)
 	if err != nil {
-		return nil, fmt.Errorf("getting %q: %v", golangBinariesURL)
+		return nil, fmt.Errorf("getting %q: %v", golangBinariesURL, err)
 	}
 	if got, want := resp.StatusCode, http.StatusOK; got != want {
 		return nil, fmt.Errorf("unexpected HTTP status code: got %d, want %d", got, want)
@@ -48,15 +48,19 @@ func getGolangBinaries() (map[string]string, error) {
 func execSearch(args []string) {
 	fs := flag.NewFlagSet("search", flag.ExitOnError)
 
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s search <pattern>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Uses Go's default regexp syntax (https://golang.org/pkg/regexp/syntax/)\n")
+		fmt.Fprintf(os.Stderr, "Example: %s search 'debi.*'\n", os.Args[0])
+	}
+
 	err := fs.Parse(args)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	if fs.NArg() != 1 {
-		fmt.Fprintf(os.Stderr, "Usage: %s search <pattern>\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Uses Go's default regexp syntax (https://golang.org/pkg/regexp/syntax/)\n")
-		fmt.Fprintf(os.Stderr, "Example: %s search debi.*\n", os.Args[0])
+		fs.Usage()
 		os.Exit(1)
 	}
 
