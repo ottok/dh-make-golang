@@ -7,7 +7,7 @@ Build-Depends: debhelper (>= 10),
                dh-golang,
                git,
                golang-any,
-               golang-github-russross-blackfriday-dev | golang-blackfriday-dev,
+               golang-github-russross-blackfriday-dev,
                golang-golang-x-net-dev,
                golang-golang-x-sync-dev,
                golang-golang-x-tools-dev
