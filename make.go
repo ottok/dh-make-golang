@@ -494,10 +494,10 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType string, depe
 	sort.Strings(dependencies)
 	builddeps := append([]string{"debhelper (>= 11)", "dh-golang", "golang-any"}, dependencies...)
 	fmt.Fprintf(f, "Build-Depends: %s\n", strings.Join(builddeps, ",\n               "))
-	fmt.Fprintf(f, "Standards-Version: 4.1.3\n")
+	fmt.Fprintf(f, "Standards-Version: 4.1.4\n")
 	fmt.Fprintf(f, "Homepage: %s\n", getHomepageForGopkg(gopkg))
-	fmt.Fprintf(f, "Vcs-Browser: https://anonscm.debian.org/cgit/pkg-go/packages/%s.git\n", debsrc)
-	fmt.Fprintf(f, "Vcs-Git: https://anonscm.debian.org/git/pkg-go/packages/%s.git\n", debsrc)
+	fmt.Fprintf(f, "Vcs-Browser: https://salsa.debian.org/go-team/packages/%s\n", debsrc)
+	fmt.Fprintf(f, "Vcs-Git: https://salsa.debian.org/go-team/packages/%s.git\n", debsrc)
 	fmt.Fprintf(f, "XS-Go-Import-Path: %s\n", gopkg)
 	fmt.Fprintf(f, "Testsuite: autopkgtest-pkg-go\n")
 	fmt.Fprintf(f, "\n")
@@ -769,7 +769,7 @@ func execMake(args []string, usage func()) {
 		golangBinaries map[string]string // map[goImportPath]debianBinaryPackage
 	)
 
-	// TODO: also check whether there already is a git repository on alioth.
+	// TODO: also check whether there already is a git repository on salsa.
 	eg.Go(func() error {
 		var err error
 		golangBinaries, err = getGolangBinaries()
@@ -861,10 +861,10 @@ func execMake(args []string, usage func()) {
 	log.Printf("    git add debian && git commit -a -m 'Initial packaging'\n")
 	log.Printf("    gbp buildpackage --git-pbuilder\n")
 	log.Printf("\n")
-	log.Printf("To create the packaging git repository on alioth, use:\n")
-	log.Printf("    ssh git.debian.org \"/git/pkg-go/setup-repository %s 'Packaging for %s'\"\n", debsrc, debsrc)
+	log.Printf("To create the packaging git repository on salsa, use:\n")
+	log.Printf("    dh-make-golang create-salsa-project %s", debsrc)
 	log.Printf("\n")
-	log.Printf("Once you are happy with your packaging, push it to alioth using:\n")
-	log.Printf("    git remote set-url origin git+ssh://git.debian.org/git/pkg-go/packages/%s.git\n", debsrc)
+	log.Printf("Once you are happy with your packaging, push it to salsa using:\n")
+	log.Printf("    git remote set-url origin git@salsa.debian.org:go-team/packages/%s.git\n", debsrc)
 	log.Printf("    gbp push\n")
 }

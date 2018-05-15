@@ -1,3 +1,18 @@
+dh-make-golang (0.0~git20180410.bcfd5bf-1) unstable; urgency=medium
+
+  [ Alexandre Viau ]
+  * Point Vcs-* urls to salsa.debian.org.
+
+  [ Anthony Fok ]
+  * Team upload.
+  * New upstream version 0.0~git20180410.bcfd5bf:
+    Change Vcs-* URLs to salsa.debian.org, and bump Standards-Version
+    to 4.1.4 in generated debian/control
+  * Remove old alternative dependency on golang-blackfriday-dev
+  * Bump Standards-Version to 4.1.4 (no change)
+
+ -- Anthony Fok <foka@debian.org>  Tue, 10 Apr 2018 11:01:57 -0600
+
 dh-make-golang (0.0~git20180305.d24646f-1~bpo9+1) stretch-backports; urgency=medium
 
   * Team upload.
