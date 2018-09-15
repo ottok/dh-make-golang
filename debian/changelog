@@ -1,3 +1,23 @@
+dh-make-golang (0.0~git20180827.d94f0cb-1) unstable; urgency=medium
+
+  [ Chris Lamb ]
+  * Bump package's Standards-Version to 4.2.1.
+  * Bump Standards-Version to 4.2.1 in generated debian/control files.
+  * Add missing Recommends on golang-golang-x-tools for digraph(1)
+    used in the "estimate" subcommand.
+
+  [ Dr. Tobias Quathamer ]
+  * New upstream version 0.0~git20180827.d94f0cb
+  * Call dh_auto_install with --no-source
+  * Update Maintainer team address
+  * Add myself as Uploader
+  * Use debhelper v11
+  * Add two new dependencies for new upstream version
+  * Update manpage, convert to markdown and generate it from markdown source
+  * Add default-mta to fix a lintian warning
+
+ -- Dr. Tobias Quathamer <toddy@debian.org>  Sat, 15 Sep 2018 23:01:41 +0200
+
 dh-make-golang (0.0~git20180410.bcfd5bf-1) unstable; urgency=medium
 
   [ Alexandre Viau ]
