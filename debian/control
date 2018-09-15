@@ -26,7 +26,7 @@ Depends: git,
          pristine-tar,
          ${misc:Depends},
          ${shlibs:Depends}
-Recommends: mail-transport-agent
+Recommends: golang-golang-x-tools, mail-transport-agent
 Built-Using: ${misc:Built-Using}
 Description: tool that converts Go packages into Debian package source
  dh-make-golang is a tool to automatically create Debian packaging for Go
