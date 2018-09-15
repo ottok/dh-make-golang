@@ -2,7 +2,8 @@ Source: dh-make-golang
 Section: devel
 Priority: optional
 Maintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>
-Uploaders: Michael Stapelberg <stapelberg@debian.org>
+Uploaders: Michael Stapelberg <stapelberg@debian.org>,
+           Dr. Tobias Quathamer <toddy@debian.org>
 Build-Depends: debhelper (>= 10),
                dh-golang,
                git,
