@@ -4,6 +4,7 @@ Priority: optional
 Maintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>
 Uploaders: Michael Stapelberg <stapelberg@debian.org>,
            Dr. Tobias Quathamer <toddy@debian.org>
+Build-Depends-Indep: pandoc
 Build-Depends: debhelper (>= 11),
                dh-golang,
                git,
