@@ -410,6 +410,8 @@ func debianNameFromGopkg(gopkg, t string, allowUnknownHoster bool) string {
 		host = "howett"
 	} else if host == "go4.org" {
 		host = "go4"
+	} else if host == "salsa.debian.org" {
+		host = "debian"
 	} else {
 		if allowUnknownHoster {
 			suffix, _ := publicsuffix.PublicSuffix(host)
@@ -489,12 +491,12 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType string, depe
 	// TODO: change this once we have a “golang” section.
 	fmt.Fprintf(f, "Section: devel\n")
 	fmt.Fprintf(f, "Priority: optional\n")
-	fmt.Fprintf(f, "Maintainer: Debian Go Packaging Team <pkg-go-maintainers@lists.alioth.debian.org>\n")
+	fmt.Fprintf(f, "Maintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>\n")
 	fmt.Fprintf(f, "Uploaders: %s <%s>\n", getDebianName(), getDebianEmail())
 	sort.Strings(dependencies)
 	builddeps := append([]string{"debhelper (>= 11)", "dh-golang", "golang-any"}, dependencies...)
 	fmt.Fprintf(f, "Build-Depends: %s\n", strings.Join(builddeps, ",\n               "))
-	fmt.Fprintf(f, "Standards-Version: 4.1.4\n")
+	fmt.Fprintf(f, "Standards-Version: 4.2.1\n")
 	fmt.Fprintf(f, "Homepage: %s\n", getHomepageForGopkg(gopkg))
 	fmt.Fprintf(f, "Vcs-Browser: https://salsa.debian.org/go-team/packages/%s\n", debsrc)
 	fmt.Fprintf(f, "Vcs-Git: https://salsa.debian.org/go-team/packages/%s.git\n", debsrc)
@@ -572,6 +574,7 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType string, depe
 	if pkgType == "program" {
 		fmt.Fprintf(f, "override_dh_auto_install:\n")
 		fmt.Fprintf(f, "\tdh_auto_install -- --no-source\n")
+		fmt.Fprintf(f, "\n")
 	}
 	fmt.Fprintf(f, "%%:\n")
 	fmt.Fprintf(f, "\tdh $@ --buildsystem=golang --with=golang\n")
@@ -601,7 +604,7 @@ func writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType string, depe
 			return err
 		}
 		defer f.Close()
-		fmt.Fprintf(f, "version=3\n")
+		fmt.Fprintf(f, "version=4\n")
 		fmt.Fprintf(f, `opts=filenamemangle=s/.+\/v?(\d\S*)\.tar\.gz/%s-\$1\.tar\.gz/,\`+"\n", debsrc)
 		fmt.Fprintf(f, `uversionmangle=s/(\d)[_\.\-\+]?(RC|rc|pre|dev|beta|alpha)[.]?(\d*)$/\$1~\$2\$3/ \`+"\n")
 		fmt.Fprintf(f, `  https://%s/tags .*/v?(\d\S*)\.tar\.gz`+"\n", gopkg)
@@ -642,7 +645,7 @@ func writeITP(gopkg, debsrc, debversion string) (string, error) {
 	fmt.Fprintf(f, "Subject: ITP: %s -- %s\n", debsrc, description)
 	fmt.Fprintf(f, "Content-Type: text/plain; charset=utf-8\n")
 	fmt.Fprintf(f, "Content-Transfer-Encoding: 8bit\n")
-	fmt.Fprintf(f, "X-Debbugs-CC: debian-devel@lists.debian.org, pkg-go-maintainers@lists.alioth.debian.org\n")
+	fmt.Fprintf(f, "X-Debbugs-CC: debian-devel@lists.debian.org, debian-go@lists.debian.org\n")
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "Package: wnpp\n")
 	fmt.Fprintf(f, "Severity: wishlist\n")
@@ -713,7 +716,7 @@ func execMake(args []string, usage func()) {
 	fs.BoolVar(&allowUnknownHoster,
 		"allow_unknown_hoster",
 		false,
-		"The pkg-go naming conventions (see https://pkg-go.alioth.debian.org/packaging.html) use a canonical identifier for the hostname, and the mapping is hardcoded into dh-make-golang. In case you want to package a Go package living on an unknown hoster, you may set this flag to true and double-check that the resulting package name is sane. Contact pkg-go if unsure.")
+		"The pkg-go naming conventions (see https://go-team.pages.debian.net/packaging.html) use a canonical identifier for the hostname, and the mapping is hardcoded into dh-make-golang. In case you want to package a Go package living on an unknown hoster, you may set this flag to true and double-check that the resulting package name is sane. Contact pkg-go if unsure.")
 
 	var pkgType string
 	fs.StringVar(&pkgType,
