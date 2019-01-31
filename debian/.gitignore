@@ -1,0 +1,6 @@
+*.log
+*.substvars
+debhelper-build-stamp
+dh-make-golang
+files
+man/*.1
