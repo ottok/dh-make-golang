@@ -7,7 +7,7 @@ Uploaders:
  Dr. Tobias Quathamer <toddy@debian.org>,
 Rules-Requires-Root: no
 Build-Depends:
- debhelper (>= 11),
+ debhelper-compat (= 12),
  dh-golang,
  git,
  golang-any (>= 2:1.9),
