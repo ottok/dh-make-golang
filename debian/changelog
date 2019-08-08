@@ -1,3 +1,44 @@
+dh-make-golang (0.0~git20190305.55fc2d0-1) unstable; urgency=medium
+
+  [ Afif Elghraoui ]
+  * d/control: set minimum required version of golang-any
+    the new dependency on golang-github-google-go-github-dev
+    needs at least 1.9, so we need it here now as well.
+
+  [ Guillem Jover ]
+  * Bump Standards-Version to 4.3.0
+  * Build object files under _build/
+    By default the build directory is arch-qualified, which means that we
+    cannot easily ignore them in places like .gitignore. Use a well-known
+    pathname for this.
+  * Wrap, sort, indent by one, and add trailing commas to multi-line fields.
+    Format fields in a way that minimizes diff output and that makes it
+    easier to copy & paste or move lines around between fields:
+     - Adding a trailing comma on the last entry makes appending new
+       entries not affect the last one.
+     - Starting the field value on the next line makes inserting or changing
+       the first value generate less diff.
+     - Indenting by one space, makes the contents movable between fields,
+       and gives a unified format to all such fields.
+     - Sorting makes the contents easier to find and easier to avoid
+       adding duplicates.
+    We cannot currently do this for the Go-Import-Path field, because
+    dh-golang does not cope with this file being multi-line with an empty
+    first line, yet.
+  * Update .gitignore files
+  * Set Rules-Requires-Root to no.
+    This makes it possible to build packages w/o requiring (pseudo-)root
+    privileges.
+
+  [ Dr. Tobias Quathamer ]
+  * New upstream version 0.0~git20190305.55fc2d0
+  * Use debhelper-compat and switch to v12
+  * Update Standards-Version to 4.4.0, no changes needed
+  * Update d/copyright
+  * Add patch to use S-V 4.4.0
+
+ -- Dr. Tobias Quathamer <toddy@debian.org>  Thu, 08 Aug 2019 11:14:59 +0200
+
 dh-make-golang (0.0~git20180827.d94f0cb-1) unstable; urgency=medium
 
   [ Chris Lamb ]
