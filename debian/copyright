@@ -5,14 +5,14 @@ Upstream-Name: dh-make-golang
 Files:
  *
 Copyright:
- 2015-2018 Michael Stapelberg, Google Inc. and contributors
+ 2015-2019 Michael Stapelberg, Google Inc. and contributors
 License: BSD-3-clause
 
 Files:
  debian/*
 Copyright:
  2015-2017 Michael Stapelberg <stapelberg@debian.org>
- 2016-2018 Dr. Tobias Quathamer <toddy@debian.org>
+ 2016-2019 Dr. Tobias Quathamer <toddy@debian.org>
 License: BSD-3-clause
 Comment: Debian packaging is licensed under the same terms as upstream
 
