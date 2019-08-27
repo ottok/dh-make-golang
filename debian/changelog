@@ -1,3 +1,12 @@
+dh-make-golang (0.0~git20190811.3953808-1) unstable; urgency=medium
+
+  * New upstream version 0.0~git20190811.3953808
+    - Remove patch, has been applied upstream
+  * Add watch file for git repository
+  * Disable usage of pristine-tar
+
+ -- Dr. Tobias Quathamer <toddy@debian.org>  Tue, 27 Aug 2019 21:31:52 +0200
+
 dh-make-golang (0.0~git20190305.55fc2d0-1) unstable; urgency=medium
 
   [ Afif Elghraoui ]
