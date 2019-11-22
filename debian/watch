@@ -1,4 +1,4 @@
 version=4
-opts="mode=git" \
-https://github.com/Debian/dh-make-golang \
-HEAD debian
+opts="filenamemangle=s%(?:.*?)?v?(\d[\d.]*)\.tar\.gz%dh-make-golang-$1.tar.gz%" \
+    https://github.com/Debian/dh-make-golang/tags \
+    (?:.*?/)?v?(\d[\d.]*)\.tar\.gz debian
