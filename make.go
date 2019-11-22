@@ -10,14 +10,24 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
-	"sort"
 	"strings"
-	"time"
 
 	"golang.org/x/net/publicsuffix"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/tools/go/vcs"
 )
+
+type packageType int
+
+const (
+	typeGuess packageType = iota
+	typeLibrary
+	typeProgram
+	typeLibraryProgram
+	typeProgramLibrary
+)
+
+var wrapAndSort string
 
 func passthroughEnv() []string {
 	var relevantVariables = []string{
@@ -279,7 +289,7 @@ func runGitCommandIn(dir string, arg ...string) error {
 	return cmd.Run()
 }
 
-func createGitRepository(debsrc, gopkg, orig string) (string, error) {
+func createGitRepository(debsrc, gopkg, orig string, dep14 bool) (string, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return "", err
@@ -291,6 +301,12 @@ func createGitRepository(debsrc, gopkg, orig string) (string, error) {
 
 	if err := runGitCommandIn(dir, "init"); err != nil {
 		return dir, err
+	}
+
+	if dep14 {
+		if err := runGitCommandIn(dir, "checkout", "-b", "debian/sid"); err != nil {
+			return dir, err
+		}
 	}
 
 	if debianName := getDebianName(); debianName != "TODO" {
@@ -317,7 +333,12 @@ func createGitRepository(debsrc, gopkg, orig string) (string, error) {
 		return dir, err
 	}
 
-	cmd := exec.Command("gbp", "import-orig", "--pristine-tar", "--no-interactive", filepath.Join(wd, orig))
+	var cmd *exec.Cmd
+	if dep14 {
+		cmd = exec.Command("gbp", "import-orig", "--debian-branch=debian/sid", "--no-interactive", filepath.Join(wd, orig))
+	} else {
+		cmd = exec.Command("gbp", "import-orig", "--no-interactive", filepath.Join(wd, orig))
+	}
 	cmd.Dir = dir
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -380,39 +401,40 @@ func normalizeDebianProgramName(str string) string {
 }
 
 // This follows https://fedoraproject.org/wiki/PackagingDrafts/Go#Package_Names
-func debianNameFromGopkg(gopkg, t string, allowUnknownHoster bool) string {
+func debianNameFromGopkg(gopkg string, t packageType, allowUnknownHoster bool) string {
 	parts := strings.Split(gopkg, "/")
 
-	if t == "program" {
+	if t == typeProgram || t == typeProgramLibrary {
 		return normalizeDebianProgramName(parts[len(parts)-1])
 	}
 
 	host := parts[0]
-	if host == "github.com" {
+	switch host {
+	case "github.com":
 		host = "github"
-	} else if host == "code.google.com" {
+	case "code.google.com":
 		host = "googlecode"
-	} else if host == "cloud.google.com" {
+	case "cloud.google.com":
 		host = "googlecloud"
-	} else if host == "gopkg.in" {
+	case "gopkg.in":
 		host = "gopkg"
-	} else if host == "golang.org" {
+	case "golang.org":
 		host = "golang"
-	} else if host == "google.golang.org" {
+	case "google.golang.org":
 		host = "google"
-	} else if host == "bitbucket.org" {
+	case "bitbucket.org":
 		host = "bitbucket"
-	} else if host == "bazil.org" {
+	case "bazil.org":
 		host = "bazil"
-	} else if host == "pault.ag" {
+	case "pault.ag":
 		host = "pault"
-	} else if host == "howett.net" {
+	case "howett.net":
 		host = "howett"
-	} else if host == "go4.org" {
+	case "go4.org":
 		host = "go4"
-	} else if host == "salsa.debian.org" {
+	case "salsa.debian.org":
 		host = "debian"
-	} else {
+	default:
 		if allowUnknownHoster {
 			suffix, _ := publicsuffix.PublicSuffix(host)
 			host = host[:len(host)-len(suffix)-len(".")]
@@ -450,170 +472,6 @@ func getDebianEmail() string {
 		}
 	}
 	return "TODO"
-}
-
-func writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType string, dependencies []string, vendorDirs []string) error {
-	if err := os.Mkdir(filepath.Join(dir, "debian"), 0755); err != nil {
-		return err
-	}
-
-	if err := os.Mkdir(filepath.Join(dir, "debian", "source"), 0755); err != nil {
-		return err
-	}
-
-	f, err := os.Create(filepath.Join(dir, "debian", "changelog"))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	fmt.Fprintf(f, "%s (%s) UNRELEASED; urgency=medium\n", debsrc, debversion)
-	fmt.Fprintf(f, "\n")
-	fmt.Fprintf(f, "  * Initial release (Closes: TODO)\n")
-	fmt.Fprintf(f, "\n")
-	fmt.Fprintf(f, " -- %s <%s>  %s\n",
-		getDebianName(),
-		getDebianEmail(),
-		time.Now().Format("Mon, 02 Jan 2006 15:04:05 -0700"))
-
-	f, err = os.Create(filepath.Join(dir, "debian", "control"))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	fmt.Fprintf(f, "Source: %s\n", debsrc)
-	fmt.Fprintf(f, "Maintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>\n")
-	fmt.Fprintf(f, "Uploaders:\n %s <%s>,\n", getDebianName(), getDebianEmail())
-	// TODO: change this once we have a “golang” section.
-	fmt.Fprintf(f, "Section: devel\n")
-	fmt.Fprintf(f, "Testsuite: autopkgtest-pkg-go\n")
-	fmt.Fprintf(f, "Priority: optional\n")
-	builddeps := []string{"debhelper-compat (= 12)", "dh-golang"}
-	builddeps_bytype := append([]string{"golang-any"}, dependencies...)
-	sort.Strings(builddeps_bytype)
-	fmt.Fprintf(f, "Build-Depends:\n %s,\n", strings.Join(builddeps, ",\n "))
-	builddeps_deptype := "Indep"
-	if pkgType == "program" {
-		builddeps_deptype = "Arch"
-	}
-	fmt.Fprintf(f, "Build-Depends-%s:\n %s,\n", builddeps_deptype, strings.Join(builddeps_bytype, ",\n "))
-	fmt.Fprintf(f, "Standards-Version: 4.4.0\n")
-	fmt.Fprintf(f, "Vcs-Browser: https://salsa.debian.org/go-team/packages/%s\n", debsrc)
-	fmt.Fprintf(f, "Vcs-Git: https://salsa.debian.org/go-team/packages/%s.git\n", debsrc)
-	fmt.Fprintf(f, "Homepage: %s\n", getHomepageForGopkg(gopkg))
-	fmt.Fprintf(f, "Rules-Requires-Root: no\n")
-	fmt.Fprintf(f, "XS-Go-Import-Path: %s\n", gopkg)
-	fmt.Fprintf(f, "\n")
-	fmt.Fprintf(f, "Package: %s\n", debbin)
-	deps := []string{"${misc:Depends}"}
-	if pkgType == "program" {
-		fmt.Fprintf(f, "Architecture: any\n")
-		deps = append(deps, "${shlibs:Depends}")
-	} else {
-		fmt.Fprintf(f, "Architecture: all\n")
-		deps = append(deps, dependencies...)
-	}
-	sort.Strings(deps)
-	fmt.Fprintf(f, "Depends:\n %s,\n", strings.Join(deps, ",\n "))
-	if pkgType == "program" {
-		fmt.Fprintf(f, "Built-Using: ${misc:Built-Using}\n")
-	}
-	description, err := getDescriptionForGopkg(gopkg)
-	if err != nil {
-		log.Printf("Could not determine description for %q: %v\n", gopkg, err)
-		description = "TODO: short description"
-	}
-	fmt.Fprintf(f, "Description: %s\n", description)
-	longdescription, err := getLongDescriptionForGopkg(gopkg)
-	if err != nil {
-		log.Printf("Could not determine long description for %q: %v\n", gopkg, err)
-		longdescription = "TODO: long description"
-	}
-	fmt.Fprintf(f, " %s\n", longdescription)
-
-	license, fulltext, err := getLicenseForGopkg(gopkg)
-	if err != nil {
-		log.Printf("Could not determine license for %q: %v\n", gopkg, err)
-		license = "TODO"
-		fulltext = "TODO"
-	}
-	f, err = os.Create(filepath.Join(dir, "debian", "copyright"))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, copyright, err := getAuthorAndCopyrightForGopkg(gopkg)
-	if err != nil {
-		log.Printf("Could not determine copyright for %q: %v\n", gopkg, err)
-		copyright = "TODO"
-	}
-	fmt.Fprintf(f, "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/\n")
-	fmt.Fprintf(f, "Source: %s\n", getHomepageForGopkg(gopkg))
-	fmt.Fprintf(f, "Upstream-Name: %s\n", filepath.Base(gopkg))
-	fmt.Fprintf(f, "Files-Excluded:\n")
-	for _, dir := range vendorDirs {
-		fmt.Fprintf(f, " %s\n", dir)
-	}
-	fmt.Fprintf(f, " Godeps/_workspace\n")
-	fmt.Fprintf(f, "\n")
-	fmt.Fprintf(f, "Files:\n *\n")
-	fmt.Fprintf(f, "Copyright:\n %s\n", copyright)
-	fmt.Fprintf(f, "License: %s\n", license)
-	fmt.Fprintf(f, "\n")
-	fmt.Fprintf(f, "Files:\n debian/*\n")
-	fmt.Fprintf(f, "Copyright:\n %s %s <%s>\n", time.Now().Format("2006"), getDebianName(), getDebianEmail())
-	fmt.Fprintf(f, "License: %s\n", license)
-	fmt.Fprintf(f, "Comment: Debian packaging is licensed under the same terms as upstream\n")
-	fmt.Fprintf(f, "\n")
-	fmt.Fprintf(f, "License: %s\n", license)
-	fmt.Fprintf(f, fulltext)
-
-	f, err = os.Create(filepath.Join(dir, "debian", "rules"))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	fmt.Fprintf(f, "#!/usr/bin/make -f\n")
-	fmt.Fprintf(f, "\n")
-	if pkgType == "program" {
-		fmt.Fprintf(f, "override_dh_auto_install:\n")
-		fmt.Fprintf(f, "\tdh_auto_install -- --no-source\n")
-		fmt.Fprintf(f, "\n")
-	}
-	fmt.Fprintf(f, "%%:\n")
-	fmt.Fprintf(f, "\tdh $@ --builddirectory=_build --buildsystem=golang --with=golang\n")
-
-	f, err = os.Create(filepath.Join(dir, "debian", "source", "format"))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	fmt.Fprintf(f, "3.0 (quilt)\n")
-
-	f, err = os.Create(filepath.Join(dir, "debian", "gbp.conf"))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	fmt.Fprintf(f, "[DEFAULT]\n")
-	fmt.Fprintf(f, "pristine-tar = True\n")
-
-	if err := os.Chmod(filepath.Join(dir, "debian", "rules"), 0755); err != nil {
-		return err
-	}
-
-	if strings.HasPrefix(gopkg, "github.com/") {
-		f, err = os.Create(filepath.Join(dir, "debian", "watch"))
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		fmt.Fprintf(f, "version=4\n")
-		fmt.Fprintf(f, `opts=filenamemangle=s/.+\/v?(\d\S*)\.tar\.gz/%s-\$1\.tar\.gz/,\`+"\n", debsrc)
-		fmt.Fprintf(f, `uversionmangle=s/(\d)[_\.\-\+]?(RC|rc|pre|dev|beta|alpha)[.]?(\d*)$/\$1~\$2\$3/ \`+"\n")
-		fmt.Fprintf(f, `  https://%s/tags .*/v?(\d\S*)\.tar\.gz`+"\n", gopkg)
-	}
-
-	return nil
 }
 
 func writeITP(gopkg, debsrc, debversion string) (string, error) {
@@ -698,7 +556,7 @@ func execMake(args []string, usage func()) {
 		fs.Usage = usage
 	} else {
 		fs.Usage = func() {
-			fmt.Fprintf(os.Stderr, "Usage: %s [make] <go-package-importpath>\n", os.Args[0])
+			fmt.Fprintf(os.Stderr, "Usage: %s [make] [FLAG]... <go-package-importpath>\n", os.Args[0])
 			fmt.Fprintf(os.Stderr, "Example: %s make golang.org/x/oauth2\n", os.Args[0])
 			fmt.Fprintf(os.Stderr, "\n")
 			fmt.Fprintf(os.Stderr, "\"%s make\" downloads the specified Go package from the Internet,\nand creates new files and directories in the current working directory.\n", os.Args[0])
@@ -712,19 +570,54 @@ func execMake(args []string, usage func()) {
 	fs.StringVar(&gitRevision,
 		"git_revision",
 		"",
-		"git revision (see gitrevisions(7)) of the specified Go package\nto check out, defaulting to the default behavior of git clone.\nUseful in case you do not want to package e.g. current HEAD.")
+		"git revision (see gitrevisions(7)) of the specified Go package\n"+
+			"to check out, defaulting to the default behavior of git clone.\n"+
+			"Useful in case you do not want to package e.g. current HEAD.")
 
 	var allowUnknownHoster bool
 	fs.BoolVar(&allowUnknownHoster,
 		"allow_unknown_hoster",
 		false,
-		"The pkg-go naming conventions use a canonical identifier for\nthe hostname (see https://go-team.pages.debian.net/packaging.html),\nand the mapping is hardcoded into dh-make-golang.\nIn case you want to package a Go package living on an unknown hoster,\nyou may set this flag to true and double-check that the resulting\npackage name is sane. Contact pkg-go if unsure.")
+		"The pkg-go naming conventions use a canonical identifier for\n"+
+			"the hostname (see https://go-team.pages.debian.net/packaging.html),\n"+
+			"and the mapping is hardcoded into dh-make-golang.\n"+
+			"In case you want to package a Go package living on an unknown hoster,\n"+
+			"you may set this flag to true and double-check that the resulting\n"+
+			"package name is sane. Contact pkg-go if unsure.")
 
-	var pkgType string
-	fs.StringVar(&pkgType,
+	var dep14 bool
+	fs.BoolVar(&dep14,
+		"dep14",
+		true,
+		"Follow DEP-14 branch naming and use debian/sid (instead of master)\n"+
+			"as the default debian-branch.")
+
+	var pristineTar bool
+	fs.BoolVar(&pristineTar,
+		"pristine-tar",
+		false,
+		"Keep using a pristine-tar branch as in the old workflow.\n"+
+			"Strongly discouraged, see \"pristine-tar considered harmful\"\n"+
+			"https://michael.stapelberg.ch/posts/2018-01-28-pristine-tar/\n"+
+			"and the \"Drop pristine-tar branches\" section at\n"+
+			"https://go-team.pages.debian.net/workflow-changes.html")
+
+	var pkgTypeString string
+	fs.StringVar(&pkgTypeString,
 		"type",
 		"",
-		"One of \"library\" or \"program\"")
+		"Set package type, one of:\n"+
+			` * "library" (aliases: "lib", "l", "dev")`+"\n"+
+			` * "program" (aliases: "prog", "p")`+"\n"+
+			` * "library+program" (aliases: "lib+prog", "l+p", "both")`+"\n"+
+			` * "program+library" (aliases: "prog+lib", "p+l", "combined")`)
+
+	fs.StringVar(&wrapAndSort,
+		"wrap-and-sort",
+		"a",
+		"Set how the various multi-line fields in debian/control are formatted.\n"+
+			"Valid values are \"a\", \"at\" and \"ast\", see wrap-and-sort(1) man page\n"+
+			"for more information.")
 
 	err := fs.Parse(args)
 	if err != nil {
@@ -749,9 +642,48 @@ func execMake(args []string, usage func()) {
 		gopkg = rr.Root
 	}
 
-	debsrc := debianNameFromGopkg(gopkg, "library", allowUnknownHoster)
+	// Set default source and binary package names.
+	// Note that debsrc may change depending on the actual package type.
+	debsrc := debianNameFromGopkg(gopkg, typeLibrary, allowUnknownHoster)
+	debLib := debsrc + "-dev"
+	debProg := debianNameFromGopkg(gopkg, typeProgram, allowUnknownHoster)
 
-	if strings.TrimSpace(pkgType) != "" {
+	var pkgType packageType
+
+	switch strings.TrimSpace(pkgTypeString) {
+	case "", "guess":
+		pkgType = typeGuess
+	case "library", "lib", "l", "dev":
+		pkgType = typeLibrary
+	case "program", "prog", "p":
+		pkgType = typeProgram
+	case "library+program", "lib+prog", "l+p", "both":
+		// Example packages: golang-github-alecthomas-chroma,
+		// golang-github-tdewolff-minify, golang-github-spf13-viper
+		pkgType = typeLibraryProgram
+	case "program+library", "prog+lib", "p+l", "combined":
+		// Example package: hugo
+		pkgType = typeProgramLibrary
+	default:
+		log.Fatalf("-type=%q not recognized, aborting\n", pkgTypeString)
+	}
+
+	switch strings.TrimSpace(wrapAndSort) {
+	case "a":
+		// Current default, also what "cme fix dpkg" generates
+		wrapAndSort = "a"
+	case "at", "ta":
+		// -t, --trailing-comma, preferred by Martina Ferrari
+		// and currently used in quite a few packages
+		wrapAndSort = "at"
+	case "ast", "ats", "sat", "sta", "tas", "tsa":
+		// -s, --short-indent too, proposed by Guillem Jover
+		wrapAndSort = "ast"
+	default:
+		log.Fatalf("%q is not a valid value for -wrap-and-sort, aborting.", wrapAndSort)
+	}
+
+	if pkgType != typeGuess {
 		debsrc = debianNameFromGopkg(gopkg, pkgType, allowUnknownHoster)
 		if _, err := os.Stat(debsrc); err == nil {
 			log.Fatalf("Output directory %q already exists, aborting\n", debsrc)
@@ -785,18 +717,14 @@ func execMake(args []string, usage func()) {
 		log.Fatalf("Could not create a tarball of the upstream source: %v\n", err)
 	}
 
-	if strings.TrimSpace(pkgType) == "" {
+	if pkgType == typeGuess {
 		if u.firstMain != "" {
 			log.Printf("Assuming you are packaging a program (because %q defines a main package), use -type to override\n", u.firstMain)
-			pkgType = "program"
+			pkgType = typeProgram
 			debsrc = debianNameFromGopkg(gopkg, pkgType, allowUnknownHoster)
 		} else {
-			pkgType = "library"
+			pkgType = typeLibrary
 		}
-	}
-	debbin := debsrc + "-dev"
-	if pkgType == "program" {
-		debbin = debsrc
 	}
 
 	if _, err := os.Stat(debsrc); err == nil {
@@ -824,7 +752,7 @@ func execMake(args []string, usage func()) {
 
 	debversion := u.version + "-1"
 
-	dir, err := createGitRepository(debsrc, gopkg, orig)
+	dir, err := createGitRepository(debsrc, gopkg, orig, dep14)
 	if err != nil {
 		log.Fatalf("Could not create git repository: %v\n", err)
 	}
@@ -833,7 +761,7 @@ func execMake(args []string, usage func()) {
 	for _, dep := range u.repoDeps {
 		if len(golangBinaries) == 0 {
 			// fall back to heuristic
-			debdependencies = append(debdependencies, debianNameFromGopkg(dep, "library", allowUnknownHoster)+"-dev")
+			debdependencies = append(debdependencies, debianNameFromGopkg(dep, typeLibrary, allowUnknownHoster)+"-dev")
 			continue
 		}
 		bin, ok := golangBinaries[dep]
@@ -844,7 +772,9 @@ func execMake(args []string, usage func()) {
 		debdependencies = append(debdependencies, bin)
 	}
 
-	if err := writeTemplates(dir, gopkg, debsrc, debbin, debversion, pkgType, debdependencies, u.vendorDirs); err != nil {
+	if err := writeTemplates(dir, gopkg, debsrc, debLib, debProg, debversion,
+		pkgType, debdependencies, u.vendorDirs,
+		dep14, pristineTar); err != nil {
 		log.Fatalf("Could not create debian/ from templates: %v\n", err)
 	}
 
@@ -855,6 +785,20 @@ func execMake(args []string, usage func()) {
 
 	log.Printf("\n")
 	log.Printf("Packaging successfully created in %s\n", dir)
+	log.Printf("\n")
+	log.Printf("    Source: %s\n", debsrc)
+	switch pkgType {
+	case typeLibrary:
+		log.Printf("    Package: %s\n", debLib)
+	case typeProgram:
+		log.Printf("    Package: %s\n", debProg)
+	case typeLibraryProgram:
+		log.Printf("    Package: %s\n", debLib)
+		log.Printf("    Package: %s\n", debProg)
+	case typeProgramLibrary:
+		log.Printf("    Package: %s\n", debProg)
+		log.Printf("    Package: %s\n", debLib)
+	}
 	log.Printf("\n")
 	log.Printf("Resolve all TODOs in %s, then email it out:\n", itpname)
 	log.Printf("    sendmail -t < %s\n", itpname)
