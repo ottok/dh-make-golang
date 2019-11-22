@@ -1,3 +1,19 @@
+dh-make-golang (0.1.0-1) unstable; urgency=medium
+
+  * New upstream version 0.1.0:
+    - Start of semantic versioning
+    - New flags -dep14, -pristine-tar and -wrap-and-sort are added;
+      the -type flag has been extended to support packages with both
+      library and program.  Run "dh-make-golang make -help" for details.
+  * Change debian/watch to track upstream tarball
+  * Add debian/gbp.conf and switch master to debian/sid
+    for DEP-14 conformance
+  * Bump Standards-Version to 4.4.1 (no change)
+  * Add myself to the list of Uploaders
+  * Add Build-Depends on golang-github-mattn-go-isatty-dev
+
+ -- Anthony Fok <foka@debian.org>  Fri, 22 Nov 2019 16:51:00 -0700
+
 dh-make-golang (0.0~git20190811.3953808-1) unstable; urgency=medium
 
   * New upstream version 0.0~git20190811.3953808
