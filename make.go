@@ -77,11 +77,12 @@ func findVendorDirs(dir string) ([]string, error) {
 
 // upstream describes the upstream repo we are about to package.
 type upstream struct {
-	tarPath    string   // path to the generated orig tarball
-	version    string   // Debian package version number, e.g. 0.0~git20180204.1d24609-1
+	tarPath    string   // path to the generated orig tarball tempfile
+	version    string   // Debian package upstream version number, e.g. 0.0~git20180204.1d24609
 	firstMain  string   // import path of the first main package within repo, if any
 	vendorDirs []string // all vendor sub directories, relative to the repo directory
 	repoDeps   []string // the repository paths of all dependencies (e.g. github.com/zyedidia/glob)
+	hasGodeps  bool     // whether the Godeps/_workspace directory exists
 }
 
 func (u *upstream) get(gopath, repo, rev string) error {
@@ -114,8 +115,8 @@ func (u *upstream) tar(gopath, repo string) error {
 		"cJf",
 		u.tarPath,
 		"--exclude=.git",
-		"--exclude=Godeps",
-		fmt.Sprintf("--exclude=%s/debian", base),
+		"--exclude=Godeps/_workspace",
+		"--exclude="+base+"/debian",
 		base)
 	cmd.Dir = filepath.Join(gopath, "src", dir)
 	cmd.Stderr = os.Stderr
@@ -258,6 +259,11 @@ func makeUpstreamSourceTarball(repo, revision string) (*upstream, error) {
 		}
 	}
 
+	if _, err := os.Stat(filepath.Join(repoDir, "Godeps", "_workspace")); !os.IsNotExist(err) {
+		log.Println("Godeps/_workspace detected")
+		u.hasGodeps = true
+	}
+
 	log.Printf("Determining upstream version number\n")
 
 	u.version, err = pkgVersionFromGit(repoDir)
@@ -289,7 +295,7 @@ func runGitCommandIn(dir string, arg ...string) error {
 	return cmd.Run()
 }
 
-func createGitRepository(debsrc, gopkg, orig string, dep14 bool) (string, error) {
+func createGitRepository(debsrc, gopkg, orig string, dep14, pristineTar bool) (string, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return "", err
@@ -304,41 +310,44 @@ func createGitRepository(debsrc, gopkg, orig string, dep14 bool) (string, error)
 	}
 
 	if dep14 {
-		if err := runGitCommandIn(dir, "checkout", "-b", "debian/sid"); err != nil {
+		if err := runGitCommandIn(dir, "checkout", "-q", "-b", "debian/sid"); err != nil {
 			return dir, err
 		}
 	}
+
+	// Set repository options
 
 	if debianName := getDebianName(); debianName != "TODO" {
 		if err := runGitCommandIn(dir, "config", "user.name", debianName); err != nil {
 			return dir, err
 		}
 	}
-
 	if debianEmail := getDebianEmail(); debianEmail != "TODO" {
 		if err := runGitCommandIn(dir, "config", "user.email", debianEmail); err != nil {
 			return dir, err
 		}
 	}
-
 	if err := runGitCommandIn(dir, "config", "push.default", "matching"); err != nil {
 		return dir, err
 	}
-
 	if err := runGitCommandIn(dir, "config", "--add", "remote.origin.push", "+refs/heads/*:refs/heads/*"); err != nil {
 		return dir, err
 	}
-
 	if err := runGitCommandIn(dir, "config", "--add", "remote.origin.push", "+refs/tags/*:refs/tags/*"); err != nil {
 		return dir, err
 	}
 
-	var cmd *exec.Cmd
+	// Import upstream orig tarball
+
+	arg := []string{"import-orig", "--no-interactive"}
 	if dep14 {
-		cmd = exec.Command("gbp", "import-orig", "--debian-branch=debian/sid", "--no-interactive", filepath.Join(wd, orig))
-	} else {
-		cmd = exec.Command("gbp", "import-orig", "--no-interactive", filepath.Join(wd, orig))
+		arg = append(arg, "--debian-branch=debian/sid")
 	}
+	if pristineTar {
+		arg = append(arg, "--pristine-tar")
+	}
+	arg = append(arg, filepath.Join(wd, orig))
+	cmd := exec.Command("gbp", arg...)
 	cmd.Dir = dir
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -752,7 +761,7 @@ func execMake(args []string, usage func()) {
 
 	debversion := u.version + "-1"
 
-	dir, err := createGitRepository(debsrc, gopkg, orig, dep14)
+	dir, err := createGitRepository(debsrc, gopkg, orig, dep14, pristineTar)
 	if err != nil {
 		log.Fatalf("Could not create git repository: %v\n", err)
 	}
@@ -773,7 +782,7 @@ func execMake(args []string, usage func()) {
 	}
 
 	if err := writeTemplates(dir, gopkg, debsrc, debLib, debProg, debversion,
-		pkgType, debdependencies, u.vendorDirs,
+		pkgType, debdependencies, u.vendorDirs, u.hasGodeps,
 		dep14, pristineTar); err != nil {
 		log.Fatalf("Could not create debian/ from templates: %v\n", err)
 	}
@@ -783,37 +792,38 @@ func execMake(args []string, usage func()) {
 		log.Fatalf("Could not write ITP email: %v\n", err)
 	}
 
-	log.Printf("\n")
-	log.Printf("Packaging successfully created in %s\n", dir)
-	log.Printf("\n")
-	log.Printf("    Source: %s\n", debsrc)
+	log.Println("Done!")
+
+	fmt.Printf("\n")
+	fmt.Printf("Packaging successfully created in %s\n", dir)
+	fmt.Printf("    Source: %s\n", debsrc)
 	switch pkgType {
 	case typeLibrary:
-		log.Printf("    Package: %s\n", debLib)
+		fmt.Printf("    Binary: %s\n", debLib)
 	case typeProgram:
-		log.Printf("    Package: %s\n", debProg)
+		fmt.Printf("    Binary: %s\n", debProg)
 	case typeLibraryProgram:
-		log.Printf("    Package: %s\n", debLib)
-		log.Printf("    Package: %s\n", debProg)
+		fmt.Printf("    Binary: %s\n", debLib)
+		fmt.Printf("    Binary: %s\n", debProg)
 	case typeProgramLibrary:
-		log.Printf("    Package: %s\n", debProg)
-		log.Printf("    Package: %s\n", debLib)
+		fmt.Printf("    Binary: %s\n", debProg)
+		fmt.Printf("    Binary: %s\n", debLib)
 	}
-	log.Printf("\n")
-	log.Printf("Resolve all TODOs in %s, then email it out:\n", itpname)
-	log.Printf("    sendmail -t < %s\n", itpname)
-	log.Printf("\n")
-	log.Printf("Resolve all the TODOs in debian/, find them using:\n")
-	log.Printf("    grep -r TODO debian\n")
-	log.Printf("\n")
-	log.Printf("To build the package, commit the packaging and use gbp buildpackage:\n")
-	log.Printf("    git add debian && git commit -a -m 'Initial packaging'\n")
-	log.Printf("    gbp buildpackage --git-pbuilder\n")
-	log.Printf("\n")
-	log.Printf("To create the packaging git repository on salsa, use:\n")
-	log.Printf("    dh-make-golang create-salsa-project %s", debsrc)
-	log.Printf("\n")
-	log.Printf("Once you are happy with your packaging, push it to salsa using:\n")
-	log.Printf("    git remote set-url origin git@salsa.debian.org:go-team/packages/%s.git\n", debsrc)
-	log.Printf("    gbp push\n")
+	fmt.Printf("\n")
+	fmt.Printf("Resolve all TODOs in %s, then email it out:\n", itpname)
+	fmt.Printf("    sendmail -t < %s\n", itpname)
+	fmt.Printf("\n")
+	fmt.Printf("Resolve all the TODOs in debian/, find them using:\n")
+	fmt.Printf("    grep -r TODO debian\n")
+	fmt.Printf("\n")
+	fmt.Printf("To build the package, commit the packaging and use gbp buildpackage:\n")
+	fmt.Printf("    git add debian && git commit -a -m 'Initial packaging'\n")
+	fmt.Printf("    gbp buildpackage --git-pbuilder\n")
+	fmt.Printf("\n")
+	fmt.Printf("To create the packaging git repository on salsa, use:\n")
+	fmt.Printf("    dh-make-golang create-salsa-project %s\n", debsrc)
+	fmt.Printf("\n")
+	fmt.Printf("Once you are happy with your packaging, push it to salsa using:\n")
+	fmt.Printf("    git remote set-url origin git@salsa.debian.org:go-team/packages/%s.git\n", debsrc)
+	fmt.Printf("    gbp push\n")
 }
