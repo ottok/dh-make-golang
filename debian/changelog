@@ -1,3 +1,15 @@
+dh-make-golang (0.1.1-1) unstable; urgency=medium
+
+  * New upstream version 0.1.1:
+    - Fix "gbp import-orig" call for -pristine-tar=true so that
+      the pristine-tar branch is actually created if requested
+    - Stop adding "Files-Excluded: Godeps/_workspace" to debian/copyright
+      if no such directory exists upstream
+    - Suppress "Switched to a new branch 'debian/sid'" message
+    - Use fmt.Printf() instead of log.Printf() for final instructions
+
+ -- Anthony Fok <foka@debian.org>  Mon, 25 Nov 2019 07:10:56 -0700
+
 dh-make-golang (0.1.0-1) unstable; urgency=medium
 
   * New upstream version 0.1.0:
