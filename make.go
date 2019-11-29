@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/user"
@@ -75,14 +76,41 @@ func findVendorDirs(dir string) ([]string, error) {
 	return vendorDirs, err
 }
 
+func downloadFile(filename, url string) error {
+	dst, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf(resp.Status)
+	}
+
+	_, err = io.Copy(dst, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // upstream describes the upstream repo we are about to package.
 type upstream struct {
-	tarPath    string   // path to the generated orig tarball tempfile
-	version    string   // Debian package upstream version number, e.g. 0.0~git20180204.1d24609
-	firstMain  string   // import path of the first main package within repo, if any
-	vendorDirs []string // all vendor sub directories, relative to the repo directory
-	repoDeps   []string // the repository paths of all dependencies (e.g. github.com/zyedidia/glob)
-	hasGodeps  bool     // whether the Godeps/_workspace directory exists
+	tarPath     string   // path to the downloaded or generated orig tarball tempfile
+	compression string   // compression method, either "gz" or "xz"
+	version     string   // Debian package upstream version number, e.g. 0.0~git20180204.1d24609
+	firstMain   string   // import path of the first main package within repo, if any
+	vendorDirs  []string // all vendor sub directories, relative to the repo directory
+	repoDeps    []string // the repository paths of all dependencies (e.g. github.com/zyedidia/glob)
+	hasGodeps   bool     // whether the Godeps/_workspace directory exists
+	hasRelease  bool     // whether any release tags exist, for debian/watch
+	isRelease   bool     // whether we are packaging a tagged version or not
 }
 
 func (u *upstream) get(gopath, repo, rev string) error {
@@ -101,6 +129,36 @@ func (u *upstream) get(gopath, repo, rev string) error {
 	return rr.VCS.Create(dir, rr.Repo)
 }
 
+func (u *upstream) tarballFromHoster(repo string) error {
+	var url string
+	parts := strings.Split(repo, "/")
+	if len(parts) < 3 {
+		return fmt.Errorf("Unsupported hoster")
+	}
+	host, owner, project := parts[0], parts[1], parts[2]
+
+	switch host {
+	case "github.com":
+		url = fmt.Sprintf("https://%s/%s/%s/archive/v%s.tar.%s",
+			host, owner, project, u.version, u.compression)
+	case "gitlab.com":
+		url = fmt.Sprintf("https://%s/%s/%s/-/archive/v%s/%s-%s.tar.%s",
+			host, owner, project, u.version, project, u.version, u.compression)
+	default:
+		return fmt.Errorf("Unsupported hoster")
+	}
+
+	done := make(chan struct{})
+	go progressSize("Download", u.tarPath, done)
+
+	log.Printf("Downloading %s", url)
+	err := downloadFile(u.tarPath, url)
+
+	close(done)
+
+	return err
+}
+
 func (u *upstream) tar(gopath, repo string) error {
 	f, err := ioutil.TempFile("", "dh-make-golang")
 	if err != nil {
@@ -108,7 +166,24 @@ func (u *upstream) tar(gopath, repo string) error {
 	}
 	u.tarPath = f.Name()
 	f.Close()
+
+	if u.isRelease {
+		if u.hasGodeps {
+			log.Printf("Godeps/_workspace exists, not downloading tarball from hoster.")
+		} else {
+			u.compression = "gz"
+			err := u.tarballFromHoster(repo)
+			if err != nil && err.Error() == "Unsupported hoster" {
+				log.Printf("INFO: Hoster does not provide release tarball\n")
+			} else {
+				return err
+			}
+		}
+	}
+
+	u.compression = "xz"
 	base := filepath.Base(repo)
+	log.Printf("Generating temp tarball as %q\n", u.tarPath)
 	dir := filepath.Dir(repo)
 	cmd := exec.Command(
 		"tar",
@@ -222,7 +297,7 @@ func (u *upstream) findDependencies(gopath, repo string) error {
 	return nil
 }
 
-func makeUpstreamSourceTarball(repo, revision string) (*upstream, error) {
+func makeUpstreamSourceTarball(repo, revision string, forcePrerelease bool) (*upstream, error) {
 	gopath, err := ioutil.TempDir("", "dh-make-golang")
 	if err != nil {
 		return nil, err
@@ -266,7 +341,7 @@ func makeUpstreamSourceTarball(repo, revision string) (*upstream, error) {
 
 	log.Printf("Determining upstream version number\n")
 
-	u.version, err = pkgVersionFromGit(repoDir)
+	u.version, u.hasRelease, u.isRelease, err = pkgVersionFromGit(repoDir, forcePrerelease)
 	if err != nil {
 		return nil, err
 	}
@@ -431,10 +506,14 @@ func debianNameFromGopkg(gopkg string, t packageType, allowUnknownHoster bool) s
 		host = "golang"
 	case "google.golang.org":
 		host = "google"
+	case "gitlab.com":
+		host = "gitlab"
 	case "bitbucket.org":
 		host = "bitbucket"
 	case "bazil.org":
 		host = "bazil"
+	case "blitiri.com.ar":
+		host = "blitiri"
 	case "pault.ag":
 		host = "pault"
 	case "howett.net":
@@ -611,6 +690,12 @@ func execMake(args []string, usage func()) {
 			"and the \"Drop pristine-tar branches\" section at\n"+
 			"https://go-team.pages.debian.net/workflow-changes.html")
 
+	var forcePrerelease bool
+	fs.BoolVar(&forcePrerelease,
+		"force-prerelease",
+		false,
+		"Package @master or @tip instead of the latest tagged version")
+
 	var pkgTypeString string
 	fs.StringVar(&pkgTypeString,
 		"type",
@@ -721,7 +806,8 @@ func execMake(args []string, usage func()) {
 		golangBinaries, err = getGolangBinaries()
 		return err
 	})
-	u, err := makeUpstreamSourceTarball(gopkg, gitRevision)
+
+	u, err := makeUpstreamSourceTarball(gopkg, gitRevision, forcePrerelease)
 	if err != nil {
 		log.Fatalf("Could not create a tarball of the upstream source: %v\n", err)
 	}
@@ -749,7 +835,8 @@ func execMake(args []string, usage func()) {
 			debbin, debbin)
 	}
 
-	orig := fmt.Sprintf("%s_%s.orig.tar.xz", debsrc, u.version)
+	orig := fmt.Sprintf("%s_%s.orig.tar.%s", debsrc, u.version, u.compression)
+	log.Printf("Moving tempfile to %q\n", orig)
 	// We need to copy the file, merely renaming is not enough since the file
 	// might be on a different filesystem (/tmp often is a tmpfs).
 	if err := copyFile(u.tarPath, orig); err != nil {
@@ -782,8 +869,7 @@ func execMake(args []string, usage func()) {
 	}
 
 	if err := writeTemplates(dir, gopkg, debsrc, debLib, debProg, debversion,
-		pkgType, debdependencies, u.vendorDirs, u.hasGodeps,
-		dep14, pristineTar); err != nil {
+		pkgType, debdependencies, u, dep14, pristineTar); err != nil {
 		log.Fatalf("Could not create debian/ from templates: %v\n", err)
 	}
 
@@ -826,4 +912,5 @@ func execMake(args []string, usage func()) {
 	fmt.Printf("Once you are happy with your packaging, push it to salsa using:\n")
 	fmt.Printf("    git remote set-url origin git@salsa.debian.org:go-team/packages/%s.git\n", debsrc)
 	fmt.Printf("    gbp push\n")
+	fmt.Printf("\n")
 }
