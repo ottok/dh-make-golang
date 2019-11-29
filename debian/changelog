@@ -1,3 +1,20 @@
+dh-make-golang (0.2.0-1) unstable; urgency=medium
+
+  * New upstream version 0.2.0
+    - Prefer upstream tagged release version over master (HEAD),
+      and download upstream release tarball if available,
+      just like what uscan would do with our default debian/watch.
+    - Add -force-prerelease flag to revert to old behaviour
+      of always choosing @master (git HEAD) over @latest tagged version.
+    - Generate debian/watch to track git HEAD if upstream has never
+      tagged any release.
+    - Fix missing long description for non-GitHub import path
+      when "go-source" meta tag actually resolves to GitHub.
+    - Add gitlab.com hoster as "gitlab".
+    - Add blitiri.com.ar hoster as "blitiri".
+
+ -- Anthony Fok <foka@debian.org>  Fri, 29 Nov 2019 14:20:45 -0700
+
 dh-make-golang (0.1.1-1) unstable; urgency=medium
 
   * New upstream version 0.1.1:
