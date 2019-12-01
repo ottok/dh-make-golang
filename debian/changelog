@@ -1,3 +1,13 @@
+dh-make-golang (0.3.0-1) unstable; urgency=medium
+
+  * New upstream version 0.3.0:
+    "dh-make-golang" now includes the full upstream git history
+    by default as recommended by Debian Go Packaging Team’s new workflow,
+    see https://go-team.pages.debian.net/workflow-changes.html.
+    This is still somewhat experimental, so all feedback is welcome!
+
+ -- Anthony Fok <foka@debian.org>  Sun, 01 Dec 2019 07:01:38 -0700
+
 dh-make-golang (0.2.0-1) unstable; urgency=medium
 
   * New upstream version 0.2.0
