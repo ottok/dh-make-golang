@@ -410,6 +410,14 @@ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
 	if err := runGitCommandIn(dir, "config", "push.default", "matching"); err != nil {
 		return dir, err
 	}
+
+	// [remote "origin"]
+
+	originURL := "git@salsa.debian.org:go-team/packages/" + debsrc + ".git"
+	log.Printf("Adding remote \"origin\" with URL %q\n", originURL)
+	if err := runGitCommandIn(dir, "remote", "add", "origin", originURL); err != nil {
+		return dir, err
+	}
 	if err := runGitCommandIn(dir, "config", "--add", "remote.origin.push", "+refs/heads/*:refs/heads/*"); err != nil {
 		return dir, err
 	}
@@ -417,12 +425,33 @@ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
 		return dir, err
 	}
 
+	// Preconfigure branches
+
+	var debianBranch string
+	if dep14 {
+		debianBranch = "debian/sid"
+	} else {
+		debianBranch = "master"
+	}
+	branches := []string{debianBranch, "upstream"}
+	if pristineTar {
+		branches = append(branches, "pristine-tar")
+	}
+	for _, branch := range branches {
+		if err := runGitCommandIn(dir, "config", "branch."+branch+".remote", "origin"); err != nil {
+			return dir, err
+		}
+		if err := runGitCommandIn(dir, "config", "branch."+branch+".merge", "refs/heads/"+branch); err != nil {
+			return dir, err
+		}
+	}
+
 	if includeUpstreamHistory {
 		u.remote, err = shortHostName(gopkg, allowUnknownHoster)
 		if err != nil {
 			return dir, fmt.Errorf("Unable to fetch upstream history: %q", err)
 		}
-		log.Printf("Adding %q as remote %q\n", u.rr.Repo, u.remote)
+		log.Printf("Adding remote %q with URL %q\n", u.remote, u.rr.Repo)
 		if err := runGitCommandIn(dir, "remote", "add", u.remote, u.rr.Repo); err != nil {
 			return dir, err
 		}
@@ -543,7 +572,7 @@ func shortHostName(gopkg string, allowUnknownHoster bool) (host string, err erro
 	default:
 		if allowUnknownHoster {
 			suffix, _ := publicsuffix.PublicSuffix(host)
-			host = host[:len(host)-len(suffix)-len(".")]
+			host = fqdn[:len(fqdn)-len(suffix)-len(".")]
 			log.Printf("WARNING: Using %q as canonical hostname for %q. If that is not okay, please file a bug against %s.\n", host, fqdn, os.Args[0])
 		} else {
 			err = fmt.Errorf("unknown hoster %q", fqdn)
@@ -940,7 +969,7 @@ func execMake(args []string, usage func()) {
 	}
 	fmt.Printf("\n")
 	fmt.Printf("Resolve all TODOs in %s, then email it out:\n", itpname)
-	fmt.Printf("    sendmail -t < %s\n", itpname)
+	fmt.Printf("    /usr/sbin/sendmail -t < %s\n", itpname)
 	fmt.Printf("\n")
 	fmt.Printf("Resolve all the TODOs in debian/, find them using:\n")
 	fmt.Printf("    grep -r TODO debian\n")
@@ -953,7 +982,6 @@ func execMake(args []string, usage func()) {
 	fmt.Printf("    dh-make-golang create-salsa-project %s\n", debsrc)
 	fmt.Printf("\n")
 	fmt.Printf("Once you are happy with your packaging, push it to salsa using:\n")
-	fmt.Printf("    git remote set-url origin git@salsa.debian.org:go-team/packages/%s.git\n", debsrc)
 	fmt.Printf("    gbp push\n")
 	fmt.Printf("\n")
 
