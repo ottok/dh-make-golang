@@ -1,3 +1,22 @@
+dh-make-golang (0.3.1-1) unstable; urgency=medium
+
+  * New upstream version 0.3.1:
+    - Generate debian/gitlab-ci.yml too.
+    - Add remote "origin" to point to Salsa in .git/config
+      to save the user from doing so manually.
+    - Preconfigure git branches just as "git clone" and "gbp clone" would do.
+      Thanks to Antoine Beaupre for the suggestion!  (Closes: #921536)
+    - List full path of /usr/sbin/sendmail in final instructions
+      so that the end developer can copy-and-paste to send ITP mail
+      without using sudo.
+    - Fix -allow_unknown_hoster parsing error in make.go.
+      Thanks to James Montgomery for the fix!  (Closes: #947512)
+    - Sort dependency list like wrap-and-sort, i.e. place variables
+      such as ${misc:Depends} and ${shlibs:Depends} at the end of the list.
+      Thanks to Arnaud Rebillout for the suggestion!
+
+ -- Anthony Fok <foka@debian.org>  Tue, 31 Dec 2019 12:29:20 -0700
+
 dh-make-golang (0.3.0-1) unstable; urgency=medium
 
   * New upstream version 0.3.0:
