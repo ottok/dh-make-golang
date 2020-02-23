@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -133,21 +134,26 @@ func (u *upstream) get(gopath, repo, rev string) error {
 	return rr.VCS.Create(dir, rr.Repo)
 }
 
-func (u *upstream) tarballFromHoster(repo string) error {
-	var url string
-	parts := strings.Split(repo, "/")
-	if len(parts) < 3 {
-		return fmt.Errorf("Unsupported hoster")
+func (u *upstream) tarballFromHoster() error {
+	var tarURL string
+	repo := strings.TrimSuffix(u.rr.Repo, ".git")
+	repoU, err := url.Parse(repo)
+	if err != nil {
+		return err
 	}
-	host, owner, project := parts[0], parts[1], parts[2]
 
-	switch host {
+	switch repoU.Host {
 	case "github.com":
-		url = fmt.Sprintf("https://%s/%s/%s/archive/v%s.tar.%s",
-			host, owner, project, u.version, u.compression)
+		tarURL = fmt.Sprintf("%s/archive/v%s.tar.%s",
+			repo, u.version, u.compression)
 	case "gitlab.com":
-		url = fmt.Sprintf("https://%s/%s/%s/-/archive/v%s/%s-%s.tar.%s",
-			host, owner, project, u.version, project, u.version, u.compression)
+		parts := strings.Split(repoU.Path, "/")
+		if len(parts) < 3 {
+			return fmt.Errorf("Incomplete repo URL: %s", u.rr.Repo)
+		}
+		project := parts[2]
+		tarURL = fmt.Sprintf("%s/-/archive/v%[3]s/%[2]s-%s.tar.%s",
+			repo, project, u.version, u.compression)
 	default:
 		return fmt.Errorf("Unsupported hoster")
 	}
@@ -155,8 +161,8 @@ func (u *upstream) tarballFromHoster(repo string) error {
 	done := make(chan struct{})
 	go progressSize("Download", u.tarPath, done)
 
-	log.Printf("Downloading %s", url)
-	err := downloadFile(u.tarPath, url)
+	log.Printf("Downloading %s", tarURL)
+	err = downloadFile(u.tarPath, tarURL)
 
 	close(done)
 
@@ -176,7 +182,7 @@ func (u *upstream) tar(gopath, repo string) error {
 			log.Printf("Godeps/_workspace exists, not downloading tarball from hoster.")
 		} else {
 			u.compression = "gz"
-			err := u.tarballFromHoster(repo)
+			err := u.tarballFromHoster()
 			if err != nil && err.Error() == "Unsupported hoster" {
 				log.Printf("INFO: Hoster does not provide release tarball\n")
 			} else {
@@ -537,48 +543,40 @@ func normalizeDebianProgramName(str string) string {
 }
 
 func shortHostName(gopkg string, allowUnknownHoster bool) (host string, err error) {
+	knownHosts := map[string]string{
+		// keep the list in alphabetical order
+		"bazil.org":         "bazil",
+		"bitbucket.org":     "bitbucket",
+		"blitiri.com.ar":    "blitiri",
+		"cloud.google.com":  "googlecloud",
+		"code.google.com":   "googlecode",
+		"git.sr.ht":         "sourcehut",
+		"github.com":        "github",
+		"gitlab.com":        "gitlab",
+		"go.uber.org":       "uber",
+		"go4.org":           "go4",
+		"gocloud.dev":       "gocloud",
+		"golang.org":        "golang",
+		"google.golang.org": "google",
+		"gopkg.in":          "gopkg",
+		"howett.net":        "howett",
+		"k8s.io":            "k8s",
+		"pault.ag":          "pault",
+		"salsa.debian.org":  "debian",
+		"sigs.k8s.io":       "k8s-sigs",
+	}
 	parts := strings.Split(gopkg, "/")
 	fqdn := parts[0]
-
-	switch fqdn {
-	case "github.com":
-		host = "github"
-	case "code.google.com":
-		host = "googlecode"
-	case "cloud.google.com":
-		host = "googlecloud"
-	case "gopkg.in":
-		host = "gopkg"
-	case "golang.org":
-		host = "golang"
-	case "google.golang.org":
-		host = "google"
-	case "gitlab.com":
-		host = "gitlab"
-	case "bitbucket.org":
-		host = "bitbucket"
-	case "bazil.org":
-		host = "bazil"
-	case "blitiri.com.ar":
-		host = "blitiri"
-	case "pault.ag":
-		host = "pault"
-	case "howett.net":
-		host = "howett"
-	case "go4.org":
-		host = "go4"
-	case "salsa.debian.org":
-		host = "debian"
-	default:
-		if allowUnknownHoster {
-			suffix, _ := publicsuffix.PublicSuffix(host)
-			host = fqdn[:len(fqdn)-len(suffix)-len(".")]
-			log.Printf("WARNING: Using %q as canonical hostname for %q. If that is not okay, please file a bug against %s.\n", host, fqdn, os.Args[0])
-		} else {
-			err = fmt.Errorf("unknown hoster %q", fqdn)
-		}
+	if host, ok := knownHosts[fqdn]; ok {
+		return host, nil
 	}
-	return host, err
+	if !allowUnknownHoster {
+		return "", fmt.Errorf("unknown hoster %q", fqdn)
+	}
+	suffix, _ := publicsuffix.PublicSuffix(fqdn)
+	host = fqdn[:len(fqdn)-len(suffix)-len(".")]
+	log.Printf("WARNING: Using %q as canonical hostname for %q. If that is not okay, please file a bug against %s.\n", host, fqdn, os.Args[0])
+	return host, nil
 }
 
 // debianNameFromGopkg maps a Go package repo path to a Debian package name,
