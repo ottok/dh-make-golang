@@ -1,3 +1,24 @@
+dh-make-golang (0.3.2-1) unstable; urgency=medium
+
+  * New upstream version 0.3.2:
+    - Refactor shortHostName:
+      Move knownHosts to a map to simplify the code,
+      and fix the publicsuffix guess, input should be fqdn.
+    - Sort the knownHosts list in alphabetical order
+    - Add {sigs,}k8s.io, "gocloud" (gocloud.dev), sourcehut (git.sr.ht),
+      and "uber" (go.uber.org) to knownHosts.
+    - Fix version detection for multi-module repo.
+    - Download upstream tarball from GitHub or GitLab
+      if so resolved by vcs.RepoRootForImportPath().
+    - Update Standards-Version to 4.5.0
+    - Fix ineffectual assignment to err in tarballFromHoster()
+    - Manage MIT (Expat) license too
+    - Remove unneeded golang-*-dev dependency for program.
+      Fixes a bug that was introduced in commit 8ed6b21 for v0.1.0
+  * Bump Standards-Version to 4.5.0 (no change)
+
+ -- Anthony Fok <foka@debian.org>  Sun, 23 Feb 2020 01:41:22 -0700
+
 dh-make-golang (0.3.1-1) unstable; urgency=medium
 
   * New upstream version 0.3.1:
