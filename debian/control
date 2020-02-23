@@ -1,44 +1,40 @@
 Source: dh-make-golang
-Section: devel
-Priority: optional
 Maintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>
-Uploaders:
- Michael Stapelberg <stapelberg@debian.org>,
- Dr. Tobias Quathamer <toddy@debian.org>,
- Anthony Fok <foka@debian.org>,
-Rules-Requires-Root: no
-Build-Depends:
- debhelper-compat (= 12),
- dh-golang,
- git,
- golang-any (>= 2:1.9),
- golang-github-google-go-github-dev,
- golang-github-gregjones-httpcache-dev,
- golang-github-mattn-go-isatty-dev,
- golang-github-russross-blackfriday-dev,
- golang-golang-x-net-dev,
- golang-golang-x-sync-dev,
- golang-golang-x-tools-dev,
- pandoc,
-Standards-Version: 4.4.1
-Homepage: https://github.com/Debian/dh-make-golang
+Uploaders: Michael Stapelberg <stapelberg@debian.org>,
+           Dr. Tobias Quathamer <toddy@debian.org>,
+           Anthony Fok <foka@debian.org>
+Section: devel
+Testsuite: autopkgtest-pkg-go
+Priority: optional
+Build-Depends: debhelper-compat (= 12),
+               dh-golang,
+               git,
+               golang-any (>= 2:1.9),
+               golang-github-google-go-github-dev,
+               golang-github-gregjones-httpcache-dev,
+               golang-github-mattn-go-isatty-dev,
+               golang-github-russross-blackfriday-dev,
+               golang-golang-x-net-dev,
+               golang-golang-x-sync-dev,
+               golang-golang-x-tools-dev,
+               pandoc
+Standards-Version: 4.5.0
 Vcs-Browser: https://salsa.debian.org/go-team/packages/dh-make-golang
 Vcs-Git: https://salsa.debian.org/go-team/packages/dh-make-golang.git
+Homepage: https://github.com/Debian/dh-make-golang
+Rules-Requires-Root: no
 XS-Go-Import-Path: github.com/Debian/dh-make-golang
-Testsuite: autopkgtest-pkg-go
 
 Package: dh-make-golang
 Architecture: any
-Depends:
- git,
- git-buildpackage,
- golang-any,
- pristine-tar,
- ${misc:Depends},
- ${shlibs:Depends},
-Recommends:
- default-mta | mail-transport-agent,
- golang-golang-x-tools,
+Depends: git,
+         git-buildpackage,
+         golang-any,
+         pristine-tar,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Recommends: default-mta | mail-transport-agent,
+            golang-golang-x-tools
 Built-Using: ${misc:Built-Using}
 Description: tool that converts Go packages into Debian package source
  dh-make-golang is a tool to automatically create Debian packaging for Go
