@@ -559,6 +559,7 @@ func shortHostName(gopkg string, allowUnknownHoster bool) (host string, err erro
 		"golang.org":        "golang",
 		"google.golang.org": "google",
 		"gopkg.in":          "gopkg",
+		"honnef.co":         "honnef",
 		"howett.net":        "howett",
 		"k8s.io":            "k8s",
 		"pault.ag":          "pault",
@@ -783,6 +784,14 @@ func execMake(args []string, usage func()) {
 			"Valid values are \"a\", \"at\" and \"ast\", see wrap-and-sort(1) man page\n"+
 			"for more information.")
 
+	// ====================================================================
+	//
+	// Start actual make routine
+	//
+	// ====================================================================
+
+	log.Printf("Starting %q", buildVersionString())
+
 	err := fs.Parse(args)
 	if err != nil {
 		log.Fatal(err)
@@ -987,7 +996,7 @@ func execMake(args []string, usage func()) {
 		fmt.Printf("NOTE: Full upstream git history has been included as per pkg-go team's\n")
 		fmt.Printf("      new workflow.  This feature is new and somewhat experimental,\n")
 		fmt.Printf("      and all feedback are welcome!\n")
-		fmt.Printf("      (For old behavior, use --include-upstream-history=false)\n")
+		fmt.Printf("      (For old behavior, use --upstream-git-history=false)\n")
 		fmt.Printf("\n")
 		fmt.Printf("The upstream git history is being tracked with the remote named %q.\n", u.remote)
 		fmt.Printf("To upgrade to the latest upstream version, you may use something like:\n")

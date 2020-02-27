@@ -11,7 +11,10 @@ import (
 )
 
 func writeTemplates(dir, gopkg, debsrc, debLib, debProg, debversion string,
-	pkgType packageType, dependencies []string, u *upstream, dep14, pristineTar bool) error {
+	pkgType packageType, dependencies []string, u *upstream,
+	dep14, pristineTar bool,
+) error {
+
 	if err := os.Mkdir(filepath.Join(dir, "debian"), 0755); err != nil {
 		return err
 	}
@@ -31,21 +34,27 @@ func writeTemplates(dir, gopkg, debsrc, debLib, debProg, debversion string,
 	if err := writeDebianRules(dir, pkgType); err != nil {
 		return err
 	}
+
+	var repack bool = len(u.vendorDirs) > 0 || u.hasGodeps
+	if err := writeDebianWatch(dir, gopkg, debsrc, u.hasRelease, repack); err != nil {
+		return err
+	}
+
 	if err := writeDebianSourceFormat(dir); err != nil {
-		return err
-	}
-	if err := writeDebianGbpConf(dir, dep14, pristineTar); err != nil {
-		return err
-	}
-	if err := writeDebianWatch(dir, gopkg, debsrc, u.hasRelease); err != nil {
 		return err
 	}
 	if err := writeDebianPackageInstall(dir, debLib, debProg, pkgType); err != nil {
 		return err
 	}
+
+	if err := writeDebianGbpConf(dir, dep14, pristineTar); err != nil {
+		return err
+	}
+
 	if err := writeDebianGitLabCI(dir); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -139,23 +148,13 @@ func writeDebianControl(dir, gopkg, debsrc, debLib, debProg string, pkgType pack
 	fmt.Fprintf(f, "Testsuite: autopkgtest-pkg-go\n")
 	fmt.Fprintf(f, "Priority: optional\n")
 
-	builddeps := []string{"debhelper-compat (= 12)", "dh-golang"}
-	builddepsByType := append([]string{"golang-any"}, dependencies...)
-	sort.Strings(builddepsByType)
-	switch pkgType {
-	case typeLibrary, typeProgram:
-		fprintfControlField(f, "Build-Depends", builddeps)
-		builddepsDepType := "Indep"
-		if pkgType == typeProgram {
-			builddepsDepType = "Arch"
-		}
-		fprintfControlField(f, "Build-Depends-"+builddepsDepType, builddepsByType)
-	case typeLibraryProgram, typeProgramLibrary:
-		builddeps = append(builddeps, builddepsByType...)
-		fprintfControlField(f, "Build-Depends", builddeps)
-	default:
-		log.Fatalf("Invalid pkgType %d in writeDebianControl(), aborting", pkgType)
-	}
+	builddeps := append([]string{
+		"debhelper-compat (= 12)",
+		"dh-golang",
+		"golang-any"},
+		dependencies...)
+	sort.Strings(builddeps)
+	fprintfControlField(f, "Build-Depends", builddeps)
 
 	fmt.Fprintf(f, "Standards-Version: 4.5.0\n")
 	fmt.Fprintf(f, "Vcs-Browser: https://salsa.debian.org/go-team/packages/%s\n", debsrc)
@@ -212,8 +211,9 @@ func writeDebianCopyright(dir, gopkg string, vendorDirs []string, hasGodeps bool
 	}
 
 	fmt.Fprintf(f, "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/\n")
-	fmt.Fprintf(f, "Source: %s\n", getHomepageForGopkg(gopkg))
 	fmt.Fprintf(f, "Upstream-Name: %s\n", filepath.Base(gopkg))
+	fmt.Fprintf(f, "Upstream-Contact: TODO\n")
+	fmt.Fprintf(f, "Source: %s\n", getHomepageForGopkg(gopkg))
 	if len(vendorDirs) > 0 || hasGodeps {
 		fmt.Fprintf(f, "Files-Excluded:\n")
 		for _, dir := range vendorDirs {
@@ -296,7 +296,7 @@ func writeDebianGbpConf(dir string, dep14, pristineTar bool) error {
 	return nil
 }
 
-func writeDebianWatch(dir, gopkg, debsrc string, hasRelease bool) error {
+func writeDebianWatch(dir, gopkg, debsrc string, hasRelease bool, repack bool) error {
 	// TODO: Support other hosters too
 	host := "github.com"
 
@@ -315,16 +315,29 @@ func writeDebianWatch(dir, gopkg, debsrc string, hasRelease bool) error {
 	}
 	defer f.Close()
 
+	filenamemanglePattern := `s%%(?:.*?)?v?(\d[\d.]*)\.tar\.gz%%%s-$1.tar.gz%%`
+	uversionmanglePattern := `s/(\d)[_\.\-\+]?(RC|rc|pre|dev|beta|alpha)[.]?(\d*)$/\$1~\$2\$3/`
+
 	if hasRelease {
 		log.Printf("Setting debian/watch to track release tarball")
 		fmt.Fprintf(f, "version=4\n")
-		fmt.Fprintf(f, `opts="filenamemangle=s/.+\/v?(\d\S*)\.tar\.gz/%s-\$1\.tar\.gz/, \`+"\n", debsrc)
-		fmt.Fprintf(f, `      uversionmangle=s/(\d)[_\.\-\+]?(RC|rc|pre|dev|beta|alpha)[.]?(\d*)$/\$1~\$2\$3/" \`+"\n")
+		fmt.Fprintf(f, `opts="filenamemangle=`+filenamemanglePattern+`,\`+"\n", debsrc)
+		fmt.Fprintf(f, `      uversionmangle=`+uversionmanglePattern)
+		if repack {
+			fmt.Fprintf(f, `,\`+"\n")
+			fmt.Fprintf(f, `      dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1`)
+		}
+		fmt.Fprintf(f, `" \`+"\n")
 		fmt.Fprintf(f, `  https://%s/%s/%s/tags .*/v?(\d\S*)\.tar\.gz debian`+"\n", host, owner, repo)
 	} else {
 		log.Printf("Setting debian/watch to track git HEAD")
 		fmt.Fprintf(f, "version=4\n")
-		fmt.Fprintf(f, `opts="mode=git, pgpmode=none" \`+"\n")
+		fmt.Fprintf(f, `opts="mode=git, pgpmode=none`)
+		if repack {
+			fmt.Fprintf(f, `,\`+"\n")
+			fmt.Fprintf(f, `      dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1`)
+		}
+		fmt.Fprintf(f, `" \`+"\n")
 		fmt.Fprintf(f, `  https://%s/%s/%s.git \`+"\n", host, owner, repo)
 		fmt.Fprintf(f, "  HEAD debian\n")
 
@@ -333,8 +346,13 @@ func writeDebianWatch(dir, gopkg, debsrc string, hasRelease bool) error {
 		fmt.Fprintf(f, "# Use the following when upstream starts to tag releases:\n")
 		fmt.Fprintf(f, "#\n")
 		fmt.Fprintf(f, "#version=4\n")
-		fmt.Fprintf(f, `#opts="filenamemangle=s/.+\/v?(\d\S*)\.tar\.gz/%s-\$1\.tar\.gz/, \`+"\n", debsrc)
-		fmt.Fprintf(f, `#      uversionmangle=s/(\d)[_\.\-\+]?(RC|rc|pre|dev|beta|alpha)[.]?(\d*)$/\$1~\$2\$3/" \`+"\n")
+		fmt.Fprintf(f, `#opts="filenamemangle=`+filenamemanglePattern+`,\`+"\n", debsrc)
+		fmt.Fprintf(f, `#      uversionmangle=`+uversionmanglePattern)
+		if repack {
+			fmt.Fprintf(f, `,\`+"\n")
+			fmt.Fprintf(f, `#      dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1`)
+		}
+		fmt.Fprintf(f, `" \`+"\n")
 		fmt.Fprintf(f, `#  https://%s/%s/%s/tags .*/v?(\d\S*)\.tar\.gz debian`+"\n", host, owner, repo)
 	}
 
@@ -365,7 +383,6 @@ func writeDebianGitLabCI(dir string) error {
 # The authoritative copy of this file lives at:
 # https://salsa.debian.org/go-team/ci/blob/master/config/gitlabciyml.go
 
-# TODO: publish under debian-go-team/ci
 image: stapelberg/ci2
 
 test_the_archive:
