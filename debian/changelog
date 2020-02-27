@@ -1,3 +1,32 @@
+dh-make-golang (0.3.3-1) unstable; urgency=medium
+
+  * New upstream version 0.3.3:
+    - Remove unneeded golang-*-dev dependency for program
+      This fixes a bug that I introduced in commit 8ed6b21 for v0.1.0
+    - Fix erroneous reference to --include-upstream-history
+      in the instruction; should be --upstream-git-history instead.
+    - Remove "# TODO: publish under debian-go-team/ci"
+      from debian/gitlab-ci.yml, as I believe that has already been done,
+      and so that its TODO would not confuse the packager.
+    - Add "Upstream-Contact: TODO" to generated debian/copyright
+      as mentors.debian.net seems to require this field, and if missing,
+      would display the following warning:
+          RFS: author info missing
+          Upstream-Contact: was not found in d/copyright.
+          RFS will not autocomplete the Upstream author.
+    - Move Build-Depends-{Arch,Indep} back into Build-Depends.
+      For Go packages, golang-any and dependencies are always needed
+      regardless of whether we are building a program or a library,
+      and it is not like we need e.g. texinfo to build *-doc packages,
+      so the use Build-Depends-Arch and Build-Depends-Indep served
+      no purpose other than unnecessarily complicating things.
+    - template: Add "dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1"
+      to debian/watch if Files-Excluded is added to debian/copyright
+    - Add honnef.co as "honnef" to knownHosts
+    - Print dh-make-golang version at the start of make
+
+ -- Anthony Fok <foka@debian.org>  Wed, 26 Feb 2020 17:29:53 -0700
+
 dh-make-golang (0.3.2-1) unstable; urgency=medium
 
   * New upstream version 0.3.2:
