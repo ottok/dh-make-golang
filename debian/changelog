@@ -1,3 +1,10 @@
+dh-make-golang (0.3.3-1~bpo10+1) buster-backports; urgency=medium
+
+  * Rebuild for buster-backports.
+  * Team upload.
+
+ -- Roger Shimizu <rosh@debian.org>  Thu, 16 Jul 2020 01:38:36 +0900
+
 dh-make-golang (0.3.3-1) unstable; urgency=medium
 
   * New upstream version 0.3.3:
