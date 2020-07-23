@@ -2,8 +2,11 @@ dh-make-golang (0.3.3-1~bpo10+1) buster-backports; urgency=medium
 
   * Rebuild for buster-backports.
   * Team upload.
+  * debian/control:
+    - Bump up golang-github-google-go-github-dev version to 28,
+      which is already in buster-backports.
 
- -- Roger Shimizu <rosh@debian.org>  Thu, 16 Jul 2020 01:38:36 +0900
+ -- Roger Shimizu <rosh@debian.org>  Thu, 23 Jul 2020 19:18:55 +0900
 
 dh-make-golang (0.3.3-1) unstable; urgency=medium
 
