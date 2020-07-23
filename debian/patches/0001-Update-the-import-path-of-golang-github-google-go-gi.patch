@@ -1,0 +1,21 @@
+From: Roger Shimizu <rosh@debian.org>
+Date: Fri, 17 Jul 2020 22:55:35 +0900
+Subject: Update the import path of golang-github-google-go-github
+
+---
+ main.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/main.go b/main.go
+index adb5a27..456b203 100644
+--- a/main.go
++++ b/main.go
+@@ -4,7 +4,7 @@ import (
+ 	"fmt"
+ 	"os"
+ 
+-	"github.com/google/go-github/v28/github"
++	"github.com/google/go-github/github"
+ 	"github.com/gregjones/httpcache"
+ )
+ 
