@@ -1,3 +1,28 @@
+dh-make-golang (0.3.3-2) unstable; urgency=medium
+
+  * Team upload.
+  * Upload to unstable.
+
+ -- Roger Shimizu <rosh@debian.org>  Mon, 21 Sep 2020 13:41:36 +0900
+
+dh-make-golang (0.3.3-2~exp2) experimental; urgency=medium
+
+  * debian/patches:
+    - Add patch 02 to skip test fails on reproducible builds.
+
+ -- Roger Shimizu <rosh@debian.org>  Sun, 02 Aug 2020 01:43:00 +0900
+
+dh-make-golang (0.3.3-2~exp1) experimental; urgency=medium
+
+  * Team upload.
+  * debian/control:
+    - Bump up golang-github-google-go-github-dev version to 32.
+  * debian/patches:
+    - Add patch to update the import path of
+      golang-github-google-go-github.
+
+ -- Roger Shimizu <rosh@debian.org>  Thu, 23 Jul 2020 18:04:15 +0900
+
 dh-make-golang (0.3.3-1~bpo10+2) buster-backports; urgency=medium
 
   * Source only upload.
