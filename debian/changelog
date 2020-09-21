@@ -1,3 +1,10 @@
+dh-make-golang (0.3.3-2) unstable; urgency=medium
+
+  * Team upload.
+  * Upload to unstable.
+
+ -- Roger Shimizu <rosh@debian.org>  Mon, 21 Sep 2020 13:41:36 +0900
+
 dh-make-golang (0.3.3-2~exp2) experimental; urgency=medium
 
   * debian/patches:
