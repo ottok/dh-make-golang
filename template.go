@@ -46,6 +46,9 @@ func writeTemplates(dir, gopkg, debsrc, debLib, debProg, debversion string,
 	if err := writeDebianPackageInstall(dir, debLib, debProg, pkgType); err != nil {
 		return err
 	}
+	if err := writeDebianUpstreamMetadata(dir, gopkg); err != nil {
+		return err
+	}
 
 	if err := writeDebianGbpConf(dir, dep14, pristineTar); err != nil {
 		return err
@@ -143,13 +146,12 @@ func writeDebianControl(dir, gopkg, debsrc, debLib, debProg string, pkgType pack
 	fmt.Fprintf(f, "Source: %s\n", debsrc)
 	fmt.Fprintf(f, "Maintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>\n")
 	fprintfControlField(f, "Uploaders", []string{getDebianName() + " <" + getDebianEmail() + ">"})
-	// TODO: change this once we have a “golang” section.
-	fmt.Fprintf(f, "Section: devel\n")
+	fmt.Fprintf(f, "Section: golang\n")
 	fmt.Fprintf(f, "Testsuite: autopkgtest-pkg-go\n")
 	fmt.Fprintf(f, "Priority: optional\n")
 
 	builddeps := append([]string{
-		"debhelper-compat (= 12)",
+		"debhelper-compat (= 13)",
 		"dh-golang",
 		"golang-any"},
 		dependencies...)
@@ -375,6 +377,37 @@ func writeDebianPackageInstall(dir, debLib, debProg string, pkgType packageType)
 		defer f.Close()
 		fmt.Fprintf(f, "usr/share\n")
 	}
+	return nil
+}
+
+func writeDebianUpstreamMetadata(dir, gopkg string) error {
+	// TODO: Support other hosters too
+	host := "github.com"
+
+	owner, repo, err := findGitHubRepo(gopkg)
+	if err != nil {
+		log.Printf("debian/upstream/metadata: Unable to resolve %s to github.com, skipping\n", gopkg)
+		return nil
+	}
+	if !strings.HasPrefix(gopkg, "github.com/") {
+		log.Printf("debian/upstream/metadata: %s resolves to %s/%s/%s\n", gopkg, host, owner, repo)
+	}
+
+	if err := os.Mkdir(filepath.Join(dir, "debian", "upstream"), 0755); err != nil {
+		return err
+	}
+	f, err := os.Create(filepath.Join(dir, "debian", "upstream", "metadata"))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	fmt.Fprintf(f, "---\n")
+	fmt.Fprintf(f, "Bug-Database: https://%s/%s/%s/issues\n", host, owner, repo)
+	fmt.Fprintf(f, "Bug-Submit: https://%s/%s/%s/issues/new\n", host, owner, repo)
+	fmt.Fprintf(f, "Repository: https://%s/%s/%s.git\n", host, owner, repo)
+	fmt.Fprintf(f, "Repository-Browse: https://%s/%s/%s\n", host, owner, repo)
+
 	return nil
 }
 
