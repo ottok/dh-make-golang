@@ -1,11 +1,10 @@
 #!/usr/bin/make -f
 
+%:
+	dh $@ --builddirectory=_build --buildsystem=golang --with=golang
+
 override_dh_auto_install:
 	dh_auto_install -- --no-source
 
-override_dh_installman:
-	pandoc -f markdown -t man -s debian/man/dh-make-golang.md -o debian/man/dh-make-golang.1
-	dh_installman
-
-%:
-	dh $@ --builddirectory=_build --buildsystem=golang --with=golang
+execute_before_dh_installman:
+	pandoc -f markdown -t man -s dh-make-golang.md -o dh-make-golang.1
