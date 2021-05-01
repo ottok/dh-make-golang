@@ -1,3 +1,38 @@
+dh-make-golang (0.4.0-1) unstable; urgency=medium
+
+  [ Ben Fiedler ]
+  * Normalize every part of a Gopkg's name.  Fixes #127.
+
+  [ Lucas Kanashiro ]
+  * template.go: bump debhelper-compat version to 13
+
+  [ dineshks1 ]
+  * Add travis jobs on ppc64le
+
+  [ Shengjing Zhu ]
+  * Change section to golang.
+    See https://lists.debian.org/debian-devel-announce/2020/10/msg00005.html
+  * Bump go-github to v32.
+    We have packaged golang-github-google-go-github-dev v32
+  * Set timezone to UTC in TestSnapshotVersion (Closes: #966674)
+
+  [ Anthony Fok ]
+  * Add rsc.io as "rsc" to knownHosts
+  * template: Generate debian/upstream/metadata too.  Fixes #144
+  * Move debian/man/dh-make-golang.md from Debian packaging
+    to this upstream repository.  Fixes #129
+  * Add support for upstream tag that is not <version> or v<version>
+    e.g. github.com/lxc/lxd with tag "lxd-4.8", and honnef.co/go/tools
+    with tag "2020.1".  Fixes #139 (Closes: #956900)
+  * Bump debhelper dependency to "Build-Depends: debhelper-compat (= 13)"
+  * Update 01-Update-the-import-path-of-golang-github-google-go-gi.patch to v32
+  * Remove 02-Skip-test-fails-on-reproducible-builds.patch
+    as a proper fix has been committed by Shengjing Zhu upstream
+  * Adjust debian/* for the move of debian/man/dh-make-golang.md
+    to the upstream repository
+
+ -- Anthony Fok <foka@debian.org>  Fri, 13 Nov 2020 19:27:08 -0700
+
 dh-make-golang (0.3.3-2~bpo10+1) buster-backports; urgency=medium
 
   * Team upload.

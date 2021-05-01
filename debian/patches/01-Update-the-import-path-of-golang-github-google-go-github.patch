@@ -14,7 +14,7 @@ index adb5a27..456b203 100644
  	"fmt"
  	"os"
  
--	"github.com/google/go-github/v28/github"
+-	"github.com/google/go-github/v32/github"
 +	"github.com/google/go-github/github"
  	"github.com/gregjones/httpcache"
  )
