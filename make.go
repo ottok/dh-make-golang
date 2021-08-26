@@ -68,7 +68,7 @@ func findVendorDirs(dir string) ([]string, error) {
 		if info.Name() == "vendor" {
 			rel, err := filepath.Rel(dir, path)
 			if err != nil {
-				return err
+				return fmt.Errorf("filepath.Rel: %w", err)
 			}
 			vendorDirs = append(vendorDirs, rel)
 		}
@@ -80,22 +80,22 @@ func findVendorDirs(dir string) ([]string, error) {
 func downloadFile(filename, url string) error {
 	dst, err := os.Create(filename)
 	if err != nil {
-		return err
+		return fmt.Errorf("create: %w", err)
 	}
 	defer dst.Close()
 
 	resp, err := http.Get(url)
 	if err != nil {
-		return err
+		return fmt.Errorf("http get: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return fmt.Errorf(resp.Status)
+		return fmt.Errorf("response: %s", resp.Status)
 	}
 
 	_, err = io.Copy(dst, resp.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("copy: %w", err)
 	}
 
 	return nil
@@ -125,7 +125,7 @@ func (u *upstream) get(gopath, repo, rev string) error {
 
 	rr, err := vcs.RepoRootForImportPath(repo, false)
 	if err != nil {
-		return err
+		return fmt.Errorf("get repo root: %w", err)
 	}
 	u.rr = rr
 	dir := filepath.Join(gopath, "src", rr.Root)
@@ -140,7 +140,7 @@ func (u *upstream) tarballFromHoster() error {
 	repo := strings.TrimSuffix(u.rr.Repo, ".git")
 	repoU, err := url.Parse(repo)
 	if err != nil {
-		return err
+		return fmt.Errorf("parse URL: %w", err)
 	}
 
 	switch repoU.Host {
@@ -150,13 +150,13 @@ func (u *upstream) tarballFromHoster() error {
 	case "gitlab.com":
 		parts := strings.Split(repoU.Path, "/")
 		if len(parts) < 3 {
-			return fmt.Errorf("Incomplete repo URL: %s", u.rr.Repo)
+			return fmt.Errorf("incomplete repo URL: %s", u.rr.Repo)
 		}
 		project := parts[2]
 		tarURL = fmt.Sprintf("%s/-/archive/%s/%s-%s.tar.%s",
 			repo, u.tag, project, u.tag, u.compression)
 	default:
-		return fmt.Errorf("Unsupported hoster")
+		return fmt.Errorf("unsupported hoster") // Don't change
 	}
 
 	done := make(chan struct{})
@@ -173,23 +173,24 @@ func (u *upstream) tarballFromHoster() error {
 func (u *upstream) tar(gopath, repo string) error {
 	f, err := ioutil.TempFile("", "dh-make-golang")
 	if err != nil {
-		return err
+		return fmt.Errorf("create temp file: %w", err)
 	}
 	u.tarPath = f.Name()
 	f.Close()
 
 	if u.isRelease {
-		if u.hasGodeps {
-			log.Printf("Godeps/_workspace exists, not downloading tarball from hoster.")
-		} else {
+		if !u.hasGodeps { // No need to repack; fetch pristine tarball
 			u.compression = "gz"
-			err := u.tarballFromHoster()
-			if err != nil && err.Error() == "Unsupported hoster" {
-				log.Printf("INFO: Hoster does not provide release tarball\n")
-			} else {
-				return err
+			if err := u.tarballFromHoster(); err != nil {
+				if err.Error() == "unsupported hoster" {
+					log.Printf("INFO: Hoster does not provide release tarball\n")
+				} else {
+					return fmt.Errorf("tarball from hoster: %w", err)
+				}
 			}
+			return nil
 		}
+		log.Printf("Godeps/_workspace exists, not downloading tarball from hoster.")
 	}
 
 	u.compression = "xz"
@@ -215,11 +216,24 @@ func (u *upstream) findMains(gopath, repo string) error {
 	cmd := exec.Command("go", "list", "-f", "{{.ImportPath}} {{.Name}}", repo+"/...")
 	cmd.Stderr = os.Stderr
 	cmd.Env = append([]string{
-		fmt.Sprintf("GOPATH=%s", gopath),
+		"GO111MODULE=off",
+		"GOPATH=" + gopath,
 	}, passthroughEnv()...)
+
 	out, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("%v: %v", cmd.Args, err)
+		log.Println("WARNING: In findMains:", fmt.Errorf("%q: %w", cmd.Args, err))
+		log.Printf("Retrying without appending \"/...\" to repo")
+		cmd = exec.Command("go", "list", "-f", "{{.ImportPath}} {{.Name}}", repo)
+		cmd.Stderr = os.Stderr
+		cmd.Env = append([]string{
+			"GO111MODULE=off",
+			"GOPATH=" + gopath,
+		}, passthroughEnv()...)
+		out, err = cmd.Output()
+		if err != nil {
+			return fmt.Errorf("%q: %w", cmd.Args, err)
+		}
 	}
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		if strings.Contains(line, "/vendor/") ||
@@ -243,12 +257,24 @@ func (u *upstream) findDependencies(gopath, repo string) error {
 	cmd := exec.Command("go", "list", "-f", "{{join .Imports \"\\n\"}}\n{{join .TestImports \"\\n\"}}\n{{join .XTestImports \"\\n\"}}", repo+"/...")
 	cmd.Stderr = os.Stderr
 	cmd.Env = append([]string{
-		fmt.Sprintf("GOPATH=%s", gopath),
+		"GO111MODULE=off",
+		"GOPATH=" + gopath,
 	}, passthroughEnv()...)
 
 	out, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("%v: %v", cmd.Args, err)
+		log.Println("WARNING: In findDependencies:", fmt.Errorf("%q: %w", cmd.Args, err))
+		log.Printf("Retrying without appending \"/...\" to repo")
+		cmd = exec.Command("go", "list", "-f", "{{join .Imports \"\\n\"}}\n{{join .TestImports \"\\n\"}}\n{{join .XTestImports \"\\n\"}}", repo)
+		cmd.Stderr = os.Stderr
+		cmd.Env = append([]string{
+			"GO111MODULE=off",
+			"GOPATH=" + gopath,
+		}, passthroughEnv()...)
+		out, err = cmd.Output()
+		if err != nil {
+			return fmt.Errorf("%q: %w", cmd.Args, err)
+		}
 	}
 
 	godependencies := make(map[string]bool)
@@ -276,12 +302,13 @@ func (u *upstream) findDependencies(gopath, repo string) error {
 	cmd.Dir = filepath.Join(gopath, "src", repo)
 	cmd.Stderr = os.Stderr
 	cmd.Env = append([]string{
-		fmt.Sprintf("GOPATH=%s", gopath),
+		// Not affected by GO111MODULE
+		"GOPATH=" + gopath,
 	}, passthroughEnv()...)
 
 	out, err = cmd.Output()
 	if err != nil {
-		return fmt.Errorf("%v: %v", cmd.Args, err)
+		return fmt.Errorf("go list std: (args: %v): %w", cmd.Args, err)
 	}
 
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
@@ -311,7 +338,7 @@ func (u *upstream) findDependencies(gopath, repo string) error {
 func makeUpstreamSourceTarball(repo, revision string, forcePrerelease bool) (*upstream, error) {
 	gopath, err := ioutil.TempDir("", "dh-make-golang")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create tmp dir: %w", err)
 	}
 	defer os.RemoveAll(gopath)
 	repoDir := filepath.Join(gopath, "src", repo)
@@ -320,12 +347,12 @@ func makeUpstreamSourceTarball(repo, revision string, forcePrerelease bool) (*up
 
 	log.Printf("Downloading %q\n", repo+"/...")
 	if err := u.get(gopath, repo, revision); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("go get: %w", err)
 	}
 
 	// Verify early this repository uses git (we call pkgVersionFromGit later):
 	if _, err := os.Stat(filepath.Join(repoDir, ".git")); os.IsNotExist(err) {
-		return nil, fmt.Errorf("Not a git repository, dh-make-golang currently only supports git")
+		return nil, fmt.Errorf("not a git repository; dh-make-golang currently only supports git")
 	}
 
 	if _, err := os.Stat(filepath.Join(repoDir, "debian")); err == nil {
@@ -334,13 +361,13 @@ func makeUpstreamSourceTarball(repo, revision string, forcePrerelease bool) (*up
 
 	u.vendorDirs, err = findVendorDirs(repoDir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("find vendor dirs: %w", err)
 	}
 	if len(u.vendorDirs) > 0 {
 		log.Printf("Deleting upstream vendor/ directories")
 		for _, dir := range u.vendorDirs {
 			if err := os.RemoveAll(filepath.Join(repoDir, dir)); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("remove all: %w", err)
 			}
 		}
 	}
@@ -354,21 +381,21 @@ func makeUpstreamSourceTarball(repo, revision string, forcePrerelease bool) (*up
 
 	u.version, err = pkgVersionFromGit(repoDir, &u, forcePrerelease)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get package version from Git: %w", err)
 	}
 
 	log.Printf("Package version is %q\n", u.version)
 
 	if err := u.findMains(gopath, repo); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("find mains: %w", err)
 	}
 
 	if err := u.findDependencies(gopath, repo); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("find dependencies: %w", err)
 	}
 
 	if err := u.tar(gopath, repo); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tar: %w", err)
 	}
 
 	return &u, nil
@@ -382,40 +409,43 @@ func runGitCommandIn(dir string, arg ...string) error {
 }
 
 func createGitRepository(debsrc, gopkg, orig string, u *upstream,
-	includeUpstreamHistory, allowUnknownHoster, dep14, pristineTar bool) (string, error) {
+	includeUpstreamHistory bool, allowUnknownHoster bool, debianBranch string, pristineTar bool) (string, error) {
 	wd, err := os.Getwd()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get cwd: %w", err)
 	}
 	dir := filepath.Join(wd, debsrc)
 	if err := os.Mkdir(dir, 0755); err != nil {
-		return "", err
+		return "", fmt.Errorf("mkdir: %w", err)
 	}
 
+	// "git init -b" is the one-liner we need here, however it was added in Git 2.28.
+	// For now we prefer to keep compatibility with older Git, so we do it in two
+	// rounds, "git init" then "git checkout".
+	//if err := runGitCommandIn(dir, "init", "-b", debianBranch); err != nil {
+	//	return dir, err
+	//}
 	if err := runGitCommandIn(dir, "init"); err != nil {
-		return dir, err
+		return dir, fmt.Errorf("git init: %w", err)
 	}
-
-	if dep14 {
-		if err := runGitCommandIn(dir, "checkout", "-q", "-b", "debian/sid"); err != nil {
-			return dir, err
-		}
+	if err := runGitCommandIn(dir, "checkout", "-q", "-b", debianBranch); err != nil {
+		return dir, fmt.Errorf("git checkout: %w", err)
 	}
 
 	// Set repository options
 
 	if debianName := getDebianName(); debianName != "TODO" {
 		if err := runGitCommandIn(dir, "config", "user.name", debianName); err != nil {
-			return dir, err
+			return dir, fmt.Errorf("git config user.name: %w", err)
 		}
 	}
 	if debianEmail := getDebianEmail(); debianEmail != "TODO" {
 		if err := runGitCommandIn(dir, "config", "user.email", debianEmail); err != nil {
-			return dir, err
+			return dir, fmt.Errorf("git config user.email: %w", err)
 		}
 	}
 	if err := runGitCommandIn(dir, "config", "push.default", "matching"); err != nil {
-		return dir, err
+		return dir, fmt.Errorf("git config push.default: %w", err)
 	}
 
 	// [remote "origin"]
@@ -423,57 +453,48 @@ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
 	originURL := "git@salsa.debian.org:go-team/packages/" + debsrc + ".git"
 	log.Printf("Adding remote \"origin\" with URL %q\n", originURL)
 	if err := runGitCommandIn(dir, "remote", "add", "origin", originURL); err != nil {
-		return dir, err
+		return dir, fmt.Errorf("git remote add origin %s: %w", originURL, err)
 	}
 	if err := runGitCommandIn(dir, "config", "--add", "remote.origin.push", "+refs/heads/*:refs/heads/*"); err != nil {
-		return dir, err
+		return dir, fmt.Errorf("git config --add remote.origin.push */heads/*: %w", err)
 	}
 	if err := runGitCommandIn(dir, "config", "--add", "remote.origin.push", "+refs/tags/*:refs/tags/*"); err != nil {
-		return dir, err
+		return dir, fmt.Errorf("git config --add remote.origin.push */tags/*: %w", err)
 	}
 
 	// Preconfigure branches
 
-	var debianBranch string
-	if dep14 {
-		debianBranch = "debian/sid"
-	} else {
-		debianBranch = "master"
-	}
 	branches := []string{debianBranch, "upstream"}
 	if pristineTar {
 		branches = append(branches, "pristine-tar")
 	}
 	for _, branch := range branches {
 		if err := runGitCommandIn(dir, "config", "branch."+branch+".remote", "origin"); err != nil {
-			return dir, err
+			return dir, fmt.Errorf("git config branch.%s.remote origin: %w", branch, err)
 		}
 		if err := runGitCommandIn(dir, "config", "branch."+branch+".merge", "refs/heads/"+branch); err != nil {
-			return dir, err
+			return dir, fmt.Errorf("git config branch.%s.merge refs/heads/%s: %w", branch, branch, err)
 		}
 	}
 
 	if includeUpstreamHistory {
 		u.remote, err = shortHostName(gopkg, allowUnknownHoster)
 		if err != nil {
-			return dir, fmt.Errorf("Unable to fetch upstream history: %q", err)
+			return dir, fmt.Errorf("unable to fetch upstream history: %q", err)
 		}
 		log.Printf("Adding remote %q with URL %q\n", u.remote, u.rr.Repo)
 		if err := runGitCommandIn(dir, "remote", "add", u.remote, u.rr.Repo); err != nil {
-			return dir, err
+			return dir, fmt.Errorf("git remote add %s %s: %w", u.remote, u.rr.Repo, err)
 		}
 		log.Printf("Running \"git fetch %s\"\n", u.remote)
 		if err := runGitCommandIn(dir, "fetch", u.remote); err != nil {
-			return dir, err
+			return dir, fmt.Errorf("git fetch %s: %w", u.remote, err)
 		}
 	}
 
 	// Import upstream orig tarball
 
-	arg := []string{"import-orig", "--no-interactive"}
-	if dep14 {
-		arg = append(arg, "--debian-branch=debian/sid")
-	}
+	arg := []string{"import-orig", "--no-interactive", "--debian-branch=" + debianBranch}
 	if pristineTar {
 		arg = append(arg, "--pristine-tar")
 	}
@@ -485,42 +506,42 @@ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
 	cmd.Dir = dir
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return dir, err
+		return dir, fmt.Errorf("import-orig: %w", err)
 	}
 
 	{
 		f, err := os.OpenFile(filepath.Join(dir, ".gitignore"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			return dir, err
+			return dir, fmt.Errorf("open .gitignore: %w", err)
 		}
 		// Beginning newline in case the file already exists and lacks a newline
 		// (not all editors enforce a newline at the end of the file):
-		if _, err := f.Write([]byte("\n.pc\n")); err != nil {
-			return dir, err
+		if _, err := f.Write([]byte("\n/.pc/\n/_build/\n")); err != nil {
+			return dir, fmt.Errorf("write to .gitignore: %w", err)
 		}
 		if err := f.Close(); err != nil {
-			return dir, err
+			return dir, fmt.Errorf("close .gitignore: %w", err)
 		}
 	}
 
 	if err := runGitCommandIn(dir, "add", ".gitignore"); err != nil {
-		return dir, err
+		return dir, fmt.Errorf("git add .gitignore: %w", err)
 	}
 
-	if err := runGitCommandIn(dir, "commit", "-m", "Ignore quilt dir .pc via .gitignore"); err != nil {
-		return dir, err
+	if err := runGitCommandIn(dir, "commit", "-m", "Ignore _build and quilt .pc dirs via .gitignore"); err != nil {
+		return dir, fmt.Errorf("git commit (.gitignore): %w", err)
 	}
 
 	return dir, nil
 }
 
-// normalize program/source name into Debian standard[1]
-// https://www.debian.org/doc/debian-policy/ch-controlfields.html#s-f-Source
+// normalize package name into Debian standard[1]
+// https://www.debian.org/doc/debian-policy/ch-controlfields.html#source
 // Package names (both source and binary, see Package, Section 5.6.7) must
 // consist only of lower case letters (a-z), digits (0-9), plus (+) and minus
 // (-) signs, and periods (.). They must be at least two characters long and
 // must start with an alphanumeric character.
-func normalizeDebianProgramName(str string) string {
+func normalizeDebianPackageName(str string) string {
 	lowerDigitPlusMinusDot := func(r rune) rune {
 		switch {
 		case r >= 'a' && r <= 'z' || '0' <= r && r <= '9':
@@ -551,9 +572,12 @@ func shortHostName(gopkg string, allowUnknownHoster bool) (host string, err erro
 		"blitiri.com.ar":    "blitiri",
 		"cloud.google.com":  "googlecloud",
 		"code.google.com":   "googlecode",
+		"filippo.io":        "filippo",
+		"fyne.io":           "fyne",
 		"git.sr.ht":         "sourcehut",
 		"github.com":        "github",
 		"gitlab.com":        "gitlab",
+		"go.step.sm":        "step",
 		"go.uber.org":       "uber",
 		"go4.org":           "go4",
 		"gocloud.dev":       "gocloud",
@@ -585,11 +609,14 @@ func shortHostName(gopkg string, allowUnknownHoster bool) (host string, err erro
 // debianNameFromGopkg maps a Go package repo path to a Debian package name,
 // e.g. "golang.org/x/text" → "golang-golang-x-text".
 // This follows https://fedoraproject.org/wiki/PackagingDrafts/Go#Package_Names
-func debianNameFromGopkg(gopkg string, t packageType, allowUnknownHoster bool) string {
+func debianNameFromGopkg(gopkg string, t packageType, customProgPkgName string, allowUnknownHoster bool) string {
 	parts := strings.Split(gopkg, "/")
 
 	if t == typeProgram || t == typeProgramLibrary {
-		return normalizeDebianProgramName(parts[len(parts)-1])
+		if customProgPkgName != "" {
+			return normalizeDebianPackageName(customProgPkgName)
+		}
+		return normalizeDebianPackageName(parts[len(parts)-1])
 	}
 
 	host, err := shortHostName(gopkg, allowUnknownHoster)
@@ -598,15 +625,7 @@ func debianNameFromGopkg(gopkg string, t packageType, allowUnknownHoster bool) s
 	}
 	parts[0] = host
 
-	for i := range parts {
-		if i == 0 {
-			continue
-		}
-
-		parts[i] = normalizeDebianProgramName(parts[i])
-	}
-
-	return strings.Trim("golang-"+strings.Join(parts, "-"), "-")
+	return normalizeDebianPackageName("golang-" + strings.Join(parts, "-"))
 }
 
 func getDebianName() string {
@@ -640,7 +659,7 @@ func writeITP(gopkg, debsrc, debversion string) (string, error) {
 	itpname := fmt.Sprintf("itp-%s.txt", debsrc)
 	f, err := os.Create(itpname)
 	if err != nil {
-		return itpname, err
+		return itpname, fmt.Errorf("create file: %w", err)
 	}
 	defer f.Close()
 
@@ -698,16 +717,16 @@ func writeITP(gopkg, debsrc, debversion string) (string, error) {
 func copyFile(src, dest string) error {
 	input, err := os.Open(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("open: %w", err)
 	}
 	defer input.Close()
 
 	output, err := os.Create(dest)
 	if err != nil {
-		return err
+		return fmt.Errorf("create: %w", err)
 	}
 	if _, err := io.Copy(output, input); err != nil {
-		return err
+		return fmt.Errorf("copy: %w", err)
 	}
 	return output.Close()
 }
@@ -759,14 +778,14 @@ func execMake(args []string, usage func()) {
 		"pristine-tar",
 		false,
 		"Keep using a pristine-tar branch as in the old workflow.\n"+
-			"Strongly discouraged, see \"pristine-tar considered harmful\"\n"+
+			"Discouraged, see \"pristine-tar considered harmful\"\n"+
 			"https://michael.stapelberg.ch/posts/2018-01-28-pristine-tar/\n"+
 			"and the \"Drop pristine-tar branches\" section at\n"+
 			"https://go-team.pages.debian.net/workflow-changes.html")
 
 	var forcePrerelease bool
 	fs.BoolVar(&forcePrerelease,
-		"force-prerelease",
+		"force_prerelease",
 		false,
 		"Package @master or @tip instead of the latest tagged version")
 
@@ -780,9 +799,16 @@ func execMake(args []string, usage func()) {
 			` * "library+program" (aliases: "lib+prog", "l+p", "both")`+"\n"+
 			` * "program+library" (aliases: "prog+lib", "p+l", "combined")`)
 
+	var customProgPkgName string
+	fs.StringVar(&customProgPkgName,
+		"program_package_name",
+		"",
+		"Override the program package name, and the source package name too\n"+
+			"when appropriate, e.g. to name github.com/cli/cli as \"gh\"")
+
 	var includeUpstreamHistory bool
 	fs.BoolVar(&includeUpstreamHistory,
-		"upstream-git-history",
+		"upstream_git_history",
 		true,
 		"Include upstream git history (Debian pkg-go team new workflow).\n"+
 			"New in dh-make-golang 0.3.0, currently experimental.")
@@ -804,7 +830,7 @@ func execMake(args []string, usage func()) {
 
 	err := fs.Parse(args)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("parse args: %v", err)
 	}
 
 	if fs.NArg() < 1 {
@@ -827,9 +853,9 @@ func execMake(args []string, usage func()) {
 
 	// Set default source and binary package names.
 	// Note that debsrc may change depending on the actual package type.
-	debsrc := debianNameFromGopkg(gopkg, typeLibrary, allowUnknownHoster)
+	debsrc := debianNameFromGopkg(gopkg, typeLibrary, customProgPkgName, allowUnknownHoster)
 	debLib := debsrc + "-dev"
-	debProg := debianNameFromGopkg(gopkg, typeProgram, allowUnknownHoster)
+	debProg := debianNameFromGopkg(gopkg, typeProgram, customProgPkgName, allowUnknownHoster)
 
 	var pkgType packageType
 
@@ -851,6 +877,12 @@ func execMake(args []string, usage func()) {
 		log.Fatalf("-type=%q not recognized, aborting\n", pkgTypeString)
 	}
 
+	// Set the debian branch.
+	debBranch := "master"
+	if dep14 {
+		debBranch = "debian/sid"
+	}
+
 	switch strings.TrimSpace(wrapAndSort) {
 	case "a":
 		// Current default, also what "cme fix dpkg" generates
@@ -867,11 +899,13 @@ func execMake(args []string, usage func()) {
 	}
 
 	if pkgType != typeGuess {
-		debsrc = debianNameFromGopkg(gopkg, pkgType, allowUnknownHoster)
+		debsrc = debianNameFromGopkg(gopkg, pkgType, customProgPkgName, allowUnknownHoster)
 		if _, err := os.Stat(debsrc); err == nil {
 			log.Fatalf("Output directory %q already exists, aborting\n", debsrc)
 		}
 	}
+	// if pkgType == typeGuess, debsrc (also the output directory) will be
+	// determined later, i.e. after the upstream source has been downloaded.
 
 	if strings.ToLower(gopkg) != gopkg {
 		// Without -git_revision, specifying the package name in the wrong case
@@ -905,7 +939,7 @@ func execMake(args []string, usage func()) {
 		if u.firstMain != "" {
 			log.Printf("Assuming you are packaging a program (because %q defines a main package), use -type to override\n", u.firstMain)
 			pkgType = typeProgram
-			debsrc = debianNameFromGopkg(gopkg, pkgType, allowUnknownHoster)
+			debsrc = debianNameFromGopkg(gopkg, pkgType, customProgPkgName, allowUnknownHoster)
 		} else {
 			pkgType = typeLibrary
 		}
@@ -937,7 +971,7 @@ func execMake(args []string, usage func()) {
 
 	debversion := u.version + "-1"
 
-	dir, err := createGitRepository(debsrc, gopkg, orig, u, includeUpstreamHistory, allowUnknownHoster, dep14, pristineTar)
+	dir, err := createGitRepository(debsrc, gopkg, orig, u, includeUpstreamHistory, allowUnknownHoster, debBranch, pristineTar)
 	if err != nil {
 		log.Fatalf("Could not create git repository: %v\n", err)
 	}
@@ -946,7 +980,7 @@ func execMake(args []string, usage func()) {
 	for _, dep := range u.repoDeps {
 		if len(golangBinaries) == 0 {
 			// fall back to heuristic
-			debdependencies = append(debdependencies, debianNameFromGopkg(dep, typeLibrary, allowUnknownHoster)+"-dev")
+			debdependencies = append(debdependencies, debianNameFromGopkg(dep, typeLibrary, "", allowUnknownHoster)+"-dev")
 			continue
 		}
 		bin, ok := golangBinaries[dep]
@@ -992,13 +1026,14 @@ func execMake(args []string, usage func()) {
 	fmt.Printf("    grep -r TODO debian\n")
 	fmt.Printf("\n")
 	fmt.Printf("To build the package, commit the packaging and use gbp buildpackage:\n")
-	fmt.Printf("    git add debian && git commit -a -m 'Initial packaging'\n")
+	fmt.Printf("    git add debian && git commit -S -m 'Initial packaging'\n")
 	fmt.Printf("    gbp buildpackage --git-pbuilder\n")
 	fmt.Printf("\n")
 	fmt.Printf("To create the packaging git repository on salsa, use:\n")
 	fmt.Printf("    dh-make-golang create-salsa-project %s\n", debsrc)
 	fmt.Printf("\n")
 	fmt.Printf("Once you are happy with your packaging, push it to salsa using:\n")
+	fmt.Printf("    git push origin %s\n", debBranch)
 	fmt.Printf("    gbp push\n")
 	fmt.Printf("\n")
 
@@ -1006,7 +1041,7 @@ func execMake(args []string, usage func()) {
 		fmt.Printf("NOTE: Full upstream git history has been included as per pkg-go team's\n")
 		fmt.Printf("      new workflow.  This feature is new and somewhat experimental,\n")
 		fmt.Printf("      and all feedback are welcome!\n")
-		fmt.Printf("      (For old behavior, use --upstream-git-history=false)\n")
+		fmt.Printf("      (For old behavior, use --upstream_git_history=false)\n")
 		fmt.Printf("\n")
 		fmt.Printf("The upstream git history is being tracked with the remote named %q.\n", u.remote)
 		fmt.Printf("To upgrade to the latest upstream version, you may use something like:\n")
