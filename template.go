@@ -16,46 +16,57 @@ func writeTemplates(dir, gopkg, debsrc, debLib, debProg, debversion string,
 ) error {
 
 	if err := os.Mkdir(filepath.Join(dir, "debian"), 0755); err != nil {
-		return err
+		// If upstream debian dir exists, try to move it aside, and then below.
+		if err := os.Rename(filepath.Join(dir, "debian"), filepath.Join(dir, "upstream_debian")); err != nil {
+			return fmt.Errorf("rename debian/ to upstream_debian/: %w", err)
+		} else { // Second attempt to create template debian dir, after moving upstream dir aside.
+			if err := os.Mkdir(filepath.Join(dir, "debian"), 0755); err != nil {
+				return fmt.Errorf("mkdir debian/: %w", err)
+			}
+			if err := os.Rename(filepath.Join(dir, "upstream_debian"), filepath.Join(dir, "debian/upstream_debian")); err != nil {
+				return fmt.Errorf("move upstream_debian into debian/: %w", err)
+			}
+			log.Printf("WARNING: Upstream debian/ dir found, and relocated to debian/upstream_debian/\n")
+		}
 	}
 	if err := os.Mkdir(filepath.Join(dir, "debian", "source"), 0755); err != nil {
-		return err
+		return fmt.Errorf("mkdir debian/source/: %w", err)
 	}
 
 	if err := writeDebianChangelog(dir, debsrc, debversion); err != nil {
-		return err
+		return fmt.Errorf("write changelog: %w", err)
 	}
 	if err := writeDebianControl(dir, gopkg, debsrc, debLib, debProg, pkgType, dependencies); err != nil {
-		return err
+		return fmt.Errorf("write control: %w", err)
 	}
 	if err := writeDebianCopyright(dir, gopkg, u.vendorDirs, u.hasGodeps); err != nil {
-		return err
+		return fmt.Errorf("write copyright: %w", err)
 	}
 	if err := writeDebianRules(dir, pkgType); err != nil {
-		return err
+		return fmt.Errorf("write rules: %w", err)
 	}
 
 	var repack bool = len(u.vendorDirs) > 0 || u.hasGodeps
 	if err := writeDebianWatch(dir, gopkg, debsrc, u.hasRelease, repack); err != nil {
-		return err
+		return fmt.Errorf("write watch: %w", err)
 	}
 
 	if err := writeDebianSourceFormat(dir); err != nil {
-		return err
+		return fmt.Errorf("write source/format: %w", err)
 	}
 	if err := writeDebianPackageInstall(dir, debLib, debProg, pkgType); err != nil {
-		return err
+		return fmt.Errorf("write install: %w", err)
 	}
 	if err := writeDebianUpstreamMetadata(dir, gopkg); err != nil {
-		return err
+		return fmt.Errorf("write upstream metadata: %w", err)
 	}
 
 	if err := writeDebianGbpConf(dir, dep14, pristineTar); err != nil {
-		return err
+		return fmt.Errorf("write gbp conf: %w", err)
 	}
 
 	if err := writeDebianGitLabCI(dir); err != nil {
-		return err
+		return fmt.Errorf("write GitLab CI: %w", err)
 	}
 
 	return nil
@@ -117,6 +128,7 @@ func addLibraryPackage(f *os.File, gopkg, debLib string, dependencies []string) 
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "Package: %s\n", debLib)
 	fmt.Fprintf(f, "Architecture: all\n")
+	fmt.Fprintf(f, "Multi-Arch: foreign\n")
 	deps := dependencies
 	sort.Strings(deps)
 	deps = append(deps, "${misc:Depends}")
@@ -158,7 +170,7 @@ func writeDebianControl(dir, gopkg, debsrc, debLib, debProg string, pkgType pack
 	sort.Strings(builddeps)
 	fprintfControlField(f, "Build-Depends", builddeps)
 
-	fmt.Fprintf(f, "Standards-Version: 4.5.0\n")
+	fmt.Fprintf(f, "Standards-Version: 4.6.0\n")
 	fmt.Fprintf(f, "Vcs-Browser: https://salsa.debian.org/go-team/packages/%s\n", debsrc)
 	fmt.Fprintf(f, "Vcs-Git: https://salsa.debian.org/go-team/packages/%s.git\n", debsrc)
 	fmt.Fprintf(f, "Homepage: %s\n", getHomepageForGopkg(gopkg))
@@ -236,7 +248,8 @@ func writeDebianCopyright(dir, gopkg string, vendorDirs []string, hasGodeps bool
 	fmt.Fprintf(f, "Comment: Debian packaging is licensed under the same terms as upstream\n")
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "License: %s\n", license)
-	fmt.Fprintf(f, fulltext)
+	fmt.Fprint(f, fulltext)
+	fmt.Fprint(f, "\n")
 
 	return nil
 }
@@ -317,14 +330,14 @@ func writeDebianWatch(dir, gopkg, debsrc string, hasRelease bool, repack bool) e
 	}
 	defer f.Close()
 
-	filenamemanglePattern := `s%%(?:.*?)?v?(\d[\d.]*)\.tar\.gz%%%s-$1.tar.gz%%`
-	uversionmanglePattern := `s/(\d)[_\.\-\+]?(RC|rc|pre|dev|beta|alpha)[.]?(\d*)$/\$1~\$2\$3/`
+	filenamemanglePattern := `s%(?:.*?)?v?(\d[\d.]*)\.tar\.gz%@PACKAGE@-$1.tar.gz%`
+	uversionmanglePattern := `s/(\d)[_\.\-\+]?(RC|rc|pre|dev|beta|alpha)[.]?(\d*)$/$1~$2$3/`
 
 	if hasRelease {
 		log.Printf("Setting debian/watch to track release tarball")
-		fmt.Fprintf(f, "version=4\n")
-		fmt.Fprintf(f, `opts="filenamemangle=`+filenamemanglePattern+`,\`+"\n", debsrc)
-		fmt.Fprintf(f, `      uversionmangle=`+uversionmanglePattern)
+		fmt.Fprint(f, "version=4\n")
+		fmt.Fprint(f, `opts="filenamemangle=`+filenamemanglePattern+`,\`+"\n")
+		fmt.Fprint(f, `      uversionmangle=`+uversionmanglePattern)
 		if repack {
 			fmt.Fprintf(f, `,\`+"\n")
 			fmt.Fprintf(f, `      dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1`)
@@ -446,7 +459,7 @@ test_the_archive:
 	}
 	defer f.Close()
 
-	fmt.Fprintf(f, gitlabciymlTmpl)
+	fmt.Fprint(f, gitlabciymlTmpl)
 
 	return nil
 }
