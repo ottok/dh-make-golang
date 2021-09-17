@@ -2,7 +2,8 @@ Source: dh-make-golang
 Maintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>
 Uploaders: Michael Stapelberg <stapelberg@debian.org>,
            Dr. Tobias Quathamer <toddy@debian.org>,
-           Anthony Fok <foka@debian.org>
+           Anthony Fok <foka@debian.org>,
+           Aloïs Micard <creekorful@debian.org>
 Section: devel
 Testsuite: autopkgtest-pkg-go
 Priority: optional
@@ -33,8 +34,7 @@ Depends: git,
          pristine-tar,
          ${misc:Depends},
          ${shlibs:Depends}
-Recommends: default-mta | mail-transport-agent,
-            golang-golang-x-tools
+Recommends: default-mta | mail-transport-agent, golang-golang-x-tools
 Built-Using: ${misc:Built-Using}
 Description: tool that converts Go packages into Debian package source
  dh-make-golang is a tool to automatically create Debian packaging for Go
