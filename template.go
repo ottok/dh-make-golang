@@ -121,7 +121,7 @@ func addDescription(f *os.File, gopkg, comment string) {
 		log.Printf("Could not determine long description for %q: %v\n", gopkg, err)
 		longdescription = "TODO: long description"
 	}
-	fmt.Fprintf(f, " %s\n", longdescription)
+	fmt.Fprintln(f, longdescription)
 }
 
 func addLibraryPackage(f *os.File, gopkg, debLib string, dependencies []string) {
@@ -339,35 +339,35 @@ func writeDebianWatch(dir, gopkg, debsrc string, hasRelease bool, repack bool) e
 		fmt.Fprint(f, `opts="filenamemangle=`+filenamemanglePattern+`,\`+"\n")
 		fmt.Fprint(f, `      uversionmangle=`+uversionmanglePattern)
 		if repack {
-			fmt.Fprintf(f, `,\`+"\n")
-			fmt.Fprintf(f, `      dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1`)
+			fmt.Fprint(f, `,\`+"\n")
+			fmt.Fprint(f, `      dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1`)
 		}
-		fmt.Fprintf(f, `" \`+"\n")
+		fmt.Fprint(f, `" \`+"\n")
 		fmt.Fprintf(f, `  https://%s/%s/%s/tags .*/v?(\d\S*)\.tar\.gz debian`+"\n", host, owner, repo)
 	} else {
 		log.Printf("Setting debian/watch to track git HEAD")
-		fmt.Fprintf(f, "version=4\n")
-		fmt.Fprintf(f, `opts="mode=git, pgpmode=none`)
+		fmt.Fprint(f, "version=4\n")
+		fmt.Fprint(f, `opts="mode=git, pgpmode=none`)
 		if repack {
-			fmt.Fprintf(f, `,\`+"\n")
-			fmt.Fprintf(f, `      dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1`)
+			fmt.Fprint(f, `,\`+"\n")
+			fmt.Fprint(f, `      dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1`)
 		}
-		fmt.Fprintf(f, `" \`+"\n")
+		fmt.Fprint(f, `" \`+"\n")
 		fmt.Fprintf(f, `  https://%s/%s/%s.git \`+"\n", host, owner, repo)
-		fmt.Fprintf(f, "  HEAD debian\n")
+		fmt.Fprint(f, "  HEAD debian\n")
 
 		// Anticipate that upstream would eventually switch to tagged releases
-		fmt.Fprintf(f, "\n")
-		fmt.Fprintf(f, "# Use the following when upstream starts to tag releases:\n")
-		fmt.Fprintf(f, "#\n")
-		fmt.Fprintf(f, "#version=4\n")
-		fmt.Fprintf(f, `#opts="filenamemangle=`+filenamemanglePattern+`,\`+"\n", debsrc)
-		fmt.Fprintf(f, `#      uversionmangle=`+uversionmanglePattern)
+		fmt.Fprint(f, "\n")
+		fmt.Fprint(f, "# Use the following when upstream starts to tag releases:\n")
+		fmt.Fprint(f, "#\n")
+		fmt.Fprint(f, "#version=4\n")
+		fmt.Fprint(f, `#opts="filenamemangle=`+filenamemanglePattern+`,\`+"\n")
+		fmt.Fprint(f, `#      uversionmangle=`+uversionmanglePattern)
 		if repack {
-			fmt.Fprintf(f, `,\`+"\n")
-			fmt.Fprintf(f, `#      dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1`)
+			fmt.Fprint(f, `,\`+"\n")
+			fmt.Fprint(f, `#      dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1`)
 		}
-		fmt.Fprintf(f, `" \`+"\n")
+		fmt.Fprint(f, `" \`+"\n")
 		fmt.Fprintf(f, `#  https://%s/%s/%s/tags .*/v?(\d\S*)\.tar\.gz debian`+"\n", host, owner, repo)
 	}
 
@@ -427,30 +427,10 @@ func writeDebianUpstreamMetadata(dir, gopkg string) error {
 func writeDebianGitLabCI(dir string) error {
 	const gitlabciymlTmpl = `# auto-generated, DO NOT MODIFY.
 # The authoritative copy of this file lives at:
-# https://salsa.debian.org/go-team/ci/blob/master/config/gitlabciyml.go
-
-image: stapelberg/ci2
-
-test_the_archive:
-  artifacts:
-    paths:
-    - before-applying-commit.json
-    - after-applying-commit.json
-  script:
-    # Create an overlay to discard writes to /srv/gopath/src after the build:
-    - "rm -rf /cache/overlay/{upper,work}"
-    - "mkdir -p /cache/overlay/{upper,work}"
-    - "mount -t overlay overlay -o lowerdir=/srv/gopath/src,upperdir=/cache/overlay/upper,workdir=/cache/overlay/work /srv/gopath/src"
-    - "export GOPATH=/srv/gopath"
-    - "export GOCACHE=/cache/go"
-    # Build the world as-is:
-    - "ci-build -exemptions=/var/lib/ci-build/exemptions.json > before-applying-commit.json"
-    # Copy this package into the overlay:
-    - "GBP_CONF_FILES=:debian/gbp.conf gbp buildpackage --git-no-pristine-tar --git-ignore-branch --git-ignore-new --git-export-dir=/tmp/export --git-no-overlay --git-tarball-dir=/nonexistant --git-cleaner=/bin/true --git-builder='dpkg-buildpackage -S -d --no-sign'"
-    - "pgt-gopath -dsc /tmp/export/*.dsc"
-    # Rebuild the world:
-    - "ci-build -exemptions=/var/lib/ci-build/exemptions.json > after-applying-commit.json"
-    - "ci-diff before-applying-commit.json after-applying-commit.json"
+# https://salsa.debian.org/go-team/infra/pkg-go-tools/blob/master/config/gitlabciyml.go
+---
+include:
+  - https://salsa.debian.org/go-team/infra/pkg-go-tools/-/raw/master/pipeline/test-archive.yml
 `
 
 	f, err := os.Create(filepath.Join(dir, "debian", "gitlab-ci.yml"))
