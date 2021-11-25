@@ -1,7 +1,24 @@
 dh-make-golang (0.6.0-1) UNRELEASED; urgency=medium
 
-  * New upstream version.
+  [ Aloïs Micard ]
+  * New upstream version 0.6.0.
   * Add myself as Uploader.
+  * Implement clone command to allow easily cloning
+    from Salsa and download of upstream .orig.tar.gz
+    from FTP archive. This ensure a clean upstream
+    tarball will be use.
+  * Implement check-depends command to compare dependencies
+    between go.mod and d/control.
+  * Use new Gitlab CI template.
+  * Add software.sslmate.com to knownHosts.
+
+  [ Anthony Fok ]
+  * Add go.cypherpunks.ru as "cypherpunks" to knownHosts.
+  * Switch description renderer to goldmark/Glamour.
+  * Template: Fix errors in debian/watch track git HEAD comment.
+
+  [ Shengjing Zhu ]
+  * Add go.opentelemetry.io to knownHosts.
 
  -- Aloïs Micard <creekorful@debian.org>  Fri, 26 Nov 2021 00:28:12 +0100
 
