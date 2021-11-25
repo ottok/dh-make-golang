@@ -1,4 +1,4 @@
-dh-make-golang (0.6.0-1) UNRELEASED; urgency=medium
+dh-make-golang (0.6.0-1) unstable; urgency=medium
 
   [ Aloïs Micard ]
   * New upstream version 0.6.0.
@@ -20,7 +20,7 @@ dh-make-golang (0.6.0-1) UNRELEASED; urgency=medium
   [ Shengjing Zhu ]
   * Add go.opentelemetry.io to knownHosts.
 
- -- Aloïs Micard <creekorful@debian.org>  Fri, 26 Nov 2021 00:28:12 +0100
+ -- Aloïs Micard <creekorful@debian.org>  Fri, 26 Nov 2021 00:47:58 +0100
 
 dh-make-golang (0.5.0-1) unstable; urgency=medium
 
