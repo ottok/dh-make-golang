@@ -4,6 +4,7 @@ dh-make-golang (0.6.0-2) UNRELEASED; urgency=medium
   * reactivate debian patch
     01-Update-the-import-path-of-golang-github-google-go-github.patch
     and extend to go.mod to allow build using go-github v48.
+  * Standards-Version: 4.6.1
 
  -- Drew Parsons <dparsons@debian.org>  Fri, 18 Nov 2022 12:46:39 +0100
 
