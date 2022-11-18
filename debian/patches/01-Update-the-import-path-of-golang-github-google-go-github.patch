@@ -6,11 +6,11 @@ Subject: Update the import path of golang-github-google-go-github
  main.go | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
-diff --git a/main.go b/main.go
-index adb5a27..456b203 100644
---- a/main.go
-+++ b/main.go
-@@ -4,7 +4,7 @@ import (
+Index: dh-make-golang/main.go
+===================================================================
+--- dh-make-golang.orig/main.go	2022-11-18 12:45:52.035957432 +0100
++++ dh-make-golang/main.go	2022-11-18 12:45:52.035957432 +0100
+@@ -4,7 +4,7 @@
  	"fmt"
  	"os"
  
@@ -19,3 +19,16 @@ index adb5a27..456b203 100644
  	"github.com/gregjones/httpcache"
  )
  
+Index: dh-make-golang/go.mod
+===================================================================
+--- dh-make-golang.orig/go.mod	2022-11-18 12:43:54.600226791 +0100
++++ dh-make-golang/go.mod	2022-11-18 12:46:09.780533980 +0100
+@@ -4,7 +4,7 @@
+ 
+ require (
+ 	github.com/charmbracelet/glamour v0.3.0
+-	github.com/google/go-github/v38 v38.1.0
++	github.com/google/go-github v38.1.0
+ 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
+ 	github.com/mattn/go-isatty v0.0.12
+ 	golang.org/x/mod v0.5.1 // indirect
