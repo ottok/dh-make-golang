@@ -8,7 +8,7 @@ Uploaders: Michael Stapelberg <stapelberg@debian.org>,
            Aloïs Micard <creekorful@debian.org>
 Rules-Requires-Root: no
 Build-Depends: debhelper-compat (= 13),
-               dh-golang,
+               dh-sequence-golang,
                git,
                golang-any (>= 2:1.16~),
                golang-github-charmbracelet-glamour-dev,
