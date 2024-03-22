@@ -10,14 +10,14 @@ Rules-Requires-Root: no
 Build-Depends: debhelper-compat (= 13),
                dh-sequence-golang,
                git,
-               golang-any (>= 2:1.16~),
+               golang-any (>= 2:1.21~),
                golang-github-charmbracelet-glamour-dev,
-               golang-github-google-go-github-dev (>= 38),
+               golang-github-google-go-github-dev (>= 60),
                golang-github-gregjones-httpcache-dev,
                golang-github-mattn-go-isatty-dev,
-               golang-golang-x-net-dev,
+               golang-golang-x-net-dev (>= 1:0.21.0),
                golang-golang-x-sync-dev,
-               golang-golang-x-tools-dev,
+               golang-golang-x-tools-dev (>= 1:0.13.0),
                golang-pault-go-debian-dev,
                pandoc
 Testsuite: autopkgtest-pkg-go
