@@ -1,10 +1,10 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -30,6 +30,8 @@ const (
 )
 
 var wrapAndSort string
+
+var errUnsupportedHoster = errors.New("unsupported hoster")
 
 func passthroughEnv() []string {
 	var relevantVariables = []string{
@@ -130,33 +132,44 @@ func (u *upstream) get(gopath, repo, rev string) error {
 	u.rr = rr
 	dir := filepath.Join(gopath, "src", rr.Root)
 	if rev != "" {
+		// Run "git clone {repo} {dir}" and "git checkout {tag}"
 		return rr.VCS.CreateAtRev(dir, rr.Repo, rev)
 	}
+	// Run "git clone {repo} {dir}" (or the equivalent command for hg, svn, bzr)
 	return rr.VCS.Create(dir, rr.Repo)
 }
 
-func (u *upstream) tarballFromHoster() error {
-	var tarURL string
+func (u *upstream) tarballUrl() (string, error) {
 	repo := strings.TrimSuffix(u.rr.Repo, ".git")
 	repoU, err := url.Parse(repo)
 	if err != nil {
-		return fmt.Errorf("parse URL: %w", err)
+		return "", fmt.Errorf("parse URL: %w", err)
 	}
 
 	switch repoU.Host {
 	case "github.com":
-		tarURL = fmt.Sprintf("%s/archive/%s.tar.%s",
-			repo, u.tag, u.compression)
-	case "gitlab.com":
+		return fmt.Sprintf("%s/archive/%s.tar.%s",
+			repo, u.tag, u.compression), nil
+	case "gitlab.com", "salsa.debian.org":
 		parts := strings.Split(repoU.Path, "/")
 		if len(parts) < 3 {
-			return fmt.Errorf("incomplete repo URL: %s", u.rr.Repo)
+			return "", fmt.Errorf("incomplete repo URL: %s", u.rr.Repo)
 		}
 		project := parts[2]
-		tarURL = fmt.Sprintf("%s/-/archive/%s/%s-%s.tar.%s",
-			repo, u.tag, project, u.tag, u.compression)
+		return fmt.Sprintf("%s/-/archive/%s/%s-%s.tar.%s",
+			repo, u.tag, project, u.tag, u.compression), nil
+	case "git.sr.ht":
+		return fmt.Sprintf("%s/archive/%s.tar.%s",
+			repo, u.tag, u.compression), nil
 	default:
-		return fmt.Errorf("unsupported hoster") // Don't change
+		return "", errUnsupportedHoster
+	}
+}
+
+func (u *upstream) tarballFromHoster() error {
+	tarURL, err := u.tarballUrl()
+	if err != nil {
+		return err
 	}
 
 	done := make(chan struct{})
@@ -171,7 +184,7 @@ func (u *upstream) tarballFromHoster() error {
 }
 
 func (u *upstream) tar(gopath, repo string) error {
-	f, err := ioutil.TempFile("", "dh-make-golang")
+	f, err := os.CreateTemp("", "dh-make-golang")
 	if err != nil {
 		return fmt.Errorf("create temp file: %w", err)
 	}
@@ -179,18 +192,18 @@ func (u *upstream) tar(gopath, repo string) error {
 	f.Close()
 
 	if u.isRelease {
-		if !u.hasGodeps { // No need to repack; fetch pristine tarball
+		if u.hasGodeps {
+			log.Printf("Godeps/_workspace exists, not downloading tarball from hoster.")
+		} else {
 			u.compression = "gz"
-			if err := u.tarballFromHoster(); err != nil {
-				if err.Error() == "unsupported hoster" {
-					log.Printf("INFO: Hoster does not provide release tarball\n")
-				} else {
-					return fmt.Errorf("tarball from hoster: %w", err)
-				}
+			if err := u.tarballFromHoster(); err == nil {
+				return nil
+			} else if err == errUnsupportedHoster {
+				log.Printf("INFO: Hoster does not provide release tarball\n")
+			} else {
+				return fmt.Errorf("tarball from hoster: %w", err)
 			}
-			return nil
 		}
-		log.Printf("Godeps/_workspace exists, not downloading tarball from hoster.")
 	}
 
 	u.compression = "xz"
@@ -213,26 +226,24 @@ func (u *upstream) tar(gopath, repo string) error {
 // findMains finds main packages within the repo (useful to auto-detect the
 // package type).
 func (u *upstream) findMains(gopath, repo string) error {
-	cmd := exec.Command("go", "list", "-f", "{{.ImportPath}} {{.Name}}", repo+"/...")
+	cmd := exec.Command("go", "list", "-e", "-f", "{{.ImportPath}} {{.Name}}", repo+"/...")
+	cmd.Dir = filepath.Join(gopath, "src", repo)
+	cmd.Env = passthroughEnv()
 	cmd.Stderr = os.Stderr
-	cmd.Env = append([]string{
-		"GO111MODULE=off",
-		"GOPATH=" + gopath,
-	}, passthroughEnv()...)
-
+	log.Println("findMains: Running", cmd, "in", cmd.Dir)
 	out, err := cmd.Output()
 	if err != nil {
 		log.Println("WARNING: In findMains:", fmt.Errorf("%q: %w", cmd.Args, err))
+		// See https://bugs.debian.org/992610
 		log.Printf("Retrying without appending \"/...\" to repo")
-		cmd = exec.Command("go", "list", "-f", "{{.ImportPath}} {{.Name}}", repo)
+		cmd = exec.Command("go", "list", "-e", "-f", "{{.ImportPath}} {{.Name}}", repo)
+		cmd.Dir = filepath.Join(gopath, "src", repo)
+		cmd.Env = passthroughEnv()
 		cmd.Stderr = os.Stderr
-		cmd.Env = append([]string{
-			"GO111MODULE=off",
-			"GOPATH=" + gopath,
-		}, passthroughEnv()...)
+		log.Println("findMains: Running", cmd, "in", cmd.Dir)
 		out, err = cmd.Output()
 		if err != nil {
-			return fmt.Errorf("%q: %w", cmd.Args, err)
+			log.Println("WARNING: In findMains:", fmt.Errorf("%q: %w", cmd.Args, err))
 		}
 	}
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
@@ -254,26 +265,23 @@ func (u *upstream) findMains(gopath, repo string) error {
 func (u *upstream) findDependencies(gopath, repo string) error {
 	log.Printf("Determining dependencies\n")
 
-	cmd := exec.Command("go", "list", "-f", "{{join .Imports \"\\n\"}}\n{{join .TestImports \"\\n\"}}\n{{join .XTestImports \"\\n\"}}", repo+"/...")
+	cmd := exec.Command("go", "list", "-e", "-f", "{{join .Imports \"\\n\"}}\n{{join .TestImports \"\\n\"}}\n{{join .XTestImports \"\\n\"}}", repo+"/...")
+	cmd.Dir = filepath.Join(gopath, "src", repo)
+	cmd.Env = passthroughEnv()
 	cmd.Stderr = os.Stderr
-	cmd.Env = append([]string{
-		"GO111MODULE=off",
-		"GOPATH=" + gopath,
-	}, passthroughEnv()...)
 
 	out, err := cmd.Output()
 	if err != nil {
 		log.Println("WARNING: In findDependencies:", fmt.Errorf("%q: %w", cmd.Args, err))
+		// See https://bugs.debian.org/992610
 		log.Printf("Retrying without appending \"/...\" to repo")
-		cmd = exec.Command("go", "list", "-f", "{{join .Imports \"\\n\"}}\n{{join .TestImports \"\\n\"}}\n{{join .XTestImports \"\\n\"}}", repo)
+		cmd = exec.Command("go", "list", "-e", "-f", "{{join .Imports \"\\n\"}}\n{{join .TestImports \"\\n\"}}\n{{join .XTestImports \"\\n\"}}", repo)
+		cmd.Dir = filepath.Join(gopath, "src", repo)
+		cmd.Env = passthroughEnv()
 		cmd.Stderr = os.Stderr
-		cmd.Env = append([]string{
-			"GO111MODULE=off",
-			"GOPATH=" + gopath,
-		}, passthroughEnv()...)
 		out, err = cmd.Output()
 		if err != nil {
-			return fmt.Errorf("%q: %w", cmd.Args, err)
+			log.Println("WARNING: In findDependencies:", fmt.Errorf("%q: %w", cmd.Args, err))
 		}
 	}
 
@@ -299,12 +307,8 @@ func (u *upstream) findDependencies(gopath, repo string) error {
 
 	// Remove all packages which are in the standard lib.
 	cmd = exec.Command("go", "list", "std")
-	cmd.Dir = filepath.Join(gopath, "src", repo)
 	cmd.Stderr = os.Stderr
-	cmd.Env = append([]string{
-		// Not affected by GO111MODULE
-		"GOPATH=" + gopath,
-	}, passthroughEnv()...)
+	cmd.Env = passthroughEnv()
 
 	out, err = cmd.Output()
 	if err != nil {
@@ -336,7 +340,7 @@ func (u *upstream) findDependencies(gopath, repo string) error {
 }
 
 func makeUpstreamSourceTarball(repo, revision string, forcePrerelease bool) (*upstream, error) {
-	gopath, err := ioutil.TempDir("", "dh-make-golang")
+	gopath, err := os.MkdirTemp("", "dh-make-golang")
 	if err != nil {
 		return nil, fmt.Errorf("create tmp dir: %w", err)
 	}
@@ -482,6 +486,9 @@ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
 		if err != nil {
 			return dir, fmt.Errorf("unable to fetch upstream history: %q", err)
 		}
+		if u.remote == "debian" {
+			u.remote = "salsa"
+		}
 		log.Printf("Adding remote %q with URL %q\n", u.remote, u.rr.Repo)
 		if err := runGitCommandIn(dir, "remote", "add", u.remote, u.rr.Repo); err != nil {
 			return dir, fmt.Errorf("git remote add %s %s: %w", u.remote, u.rr.Repo, err)
@@ -578,6 +585,7 @@ func shortHostName(gopkg string, allowUnknownHoster bool) (host string, err erro
 		"github.com":           "github",
 		"gitlab.com":           "gitlab",
 		"go.cypherpunks.ru":    "cypherpunks",
+		"go.mongodb.org":       "mongodb",
 		"go.opentelemetry.io":  "opentelemetry",
 		"go.step.sm":           "step",
 		"go.uber.org":          "uber",
@@ -589,6 +597,7 @@ func shortHostName(gopkg string, allowUnknownHoster bool) (host string, err erro
 		"honnef.co":            "honnef",
 		"howett.net":           "howett",
 		"k8s.io":               "k8s",
+		"modernc.org":          "modernc",
 		"pault.ag":             "pault",
 		"rsc.io":               "rsc",
 		"salsa.debian.org":     "debian",
@@ -648,7 +657,7 @@ func getDebianEmail() string {
 	if email := strings.TrimSpace(os.Getenv("DEBEMAIL")); email != "" {
 		return email
 	}
-	mailname, err := ioutil.ReadFile("/etc/mailname")
+	mailname, err := os.ReadFile("/etc/mailname")
 	// By default, /etc/mailname contains "debian" which is not useful; check for ".".
 	if err == nil && strings.Contains(string(mailname), ".") {
 		if u, err := user.Current(); err == nil && u.Username != "" {

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -18,7 +17,7 @@ Testsuite: autopkgtest-pkg-go
 Priority: optional
 Build-Depends:
  debhelper-compat (= 13),
- dh-golang,
+ dh-sequence-golang,
  golang-any,
  golang-github-advancedlogic-goose-dev,
  golang-github-fatih-color-dev,
@@ -43,7 +42,7 @@ Description: read your RSS feeds from your terminal
  Terminews is a terminal based application (TUI)
  that allows you to manage RSS resources and display their news feeds.
 `
-	tmpDir, err := ioutil.TempDir("", "dh-make-golang")
+	tmpDir, err := os.MkdirTemp("", "dh-make-golang")
 	if err != nil {
 		t.Fatalf("Could not create temp dir: %v", err)
 	}
@@ -52,7 +51,7 @@ Description: read your RSS feeds from your terminal
 	if err := os.MkdirAll(filepath.Join(tmpDir, "dummy-package", "debian"), 0750); err != nil {
 		t.Fatalf("Could not create dummy Debian package: %v", err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(tmpDir, "dummy-package", "debian", "control"), []byte(f), 0640); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "dummy-package", "debian", "control"), []byte(f), 0640); err != nil {
 		t.Fatalf("Could not create dummy Debian package: %v", err)
 	}
 
@@ -96,10 +95,10 @@ go 1.16
 
 require (
 	github.com/charmbracelet/glamour v0.3.0
-	github.com/google/go-github/v38 v38.1.0
+	github.com/google/go-github/v60 v60.0.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 )`
-	tmpDir, err := ioutil.TempDir("", "dh-make-golang")
+	tmpDir, err := os.MkdirTemp("", "dh-make-golang")
 	if err != nil {
 		t.Fatalf("Could not create temp dir: %v", err)
 	}
@@ -108,7 +107,7 @@ require (
 	if err := os.MkdirAll(filepath.Join(tmpDir, "dummy-package"), 0750); err != nil {
 		t.Fatalf("Could not create dummy Debian package: %v", err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(tmpDir, "dummy-package", "go.mod"), []byte(f), 0640); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "dummy-package", "go.mod"), []byte(f), 0640); err != nil {
 		t.Fatalf("Could not create dummy Debian package: %v", err)
 	}
 

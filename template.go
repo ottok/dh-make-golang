@@ -33,6 +33,9 @@ func writeTemplates(dir, gopkg, debsrc, debLib, debProg, debversion string,
 		return fmt.Errorf("mkdir debian/source/: %w", err)
 	}
 
+	if err := writeDebianGitIgnore(dir, debLib, debProg, pkgType); err != nil {
+		return fmt.Errorf("write debian/.gitignore: %w", err)
+	}
 	if err := writeDebianChangelog(dir, debsrc, debversion); err != nil {
 		return fmt.Errorf("write changelog: %w", err)
 	}
@@ -67,6 +70,37 @@ func writeTemplates(dir, gopkg, debsrc, debLib, debProg, debversion string,
 
 	if err := writeDebianGitLabCI(dir); err != nil {
 		return fmt.Errorf("write GitLab CI: %w", err)
+	}
+
+	return nil
+}
+
+func writeDebianGitIgnore(dir, debLib, debProg string, pkgType packageType) error {
+	f, err := os.Create(filepath.Join(dir, "debian", ".gitignore"))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	fmt.Fprintf(f, "*.debhelper\n")
+	fmt.Fprintf(f, "*.log\n")
+	fmt.Fprintf(f, "*.substvars\n")
+	fmt.Fprintf(f, "/.debhelper/\n")
+	fmt.Fprintf(f, "/debhelper-build-stamp\n")
+	fmt.Fprintf(f, "/files\n")
+
+	switch pkgType {
+	case typeLibrary:
+		fmt.Fprintf(f, "/%s/\n", debLib)
+	case typeProgram:
+		fmt.Fprintf(f, "/%s/\n", debProg)
+	case typeLibraryProgram:
+		fallthrough
+	case typeProgramLibrary:
+		fmt.Fprintf(f, "/%s/\n", debLib)
+		fmt.Fprintf(f, "/%s/\n", debProg)
+	default:
+		log.Fatalf("Invalid pkgType %d in writeDebianGitIgnore(), aborting", pkgType)
 	}
 
 	return nil
@@ -139,6 +173,7 @@ func addLibraryPackage(f *os.File, gopkg, debLib string, dependencies []string) 
 func addProgramPackage(f *os.File, gopkg, debProg string) {
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "Package: %s\n", debProg)
+	fmt.Fprintf(f, "Section: TODO\n")
 	fmt.Fprintf(f, "Architecture: any\n")
 	deps := []string{"${misc:Depends}", "${shlibs:Depends}"}
 	fprintfControlField(f, "Depends", deps)
@@ -156,25 +191,25 @@ func writeDebianControl(dir, gopkg, debsrc, debLib, debProg string, pkgType pack
 	// Source package:
 
 	fmt.Fprintf(f, "Source: %s\n", debsrc)
+	fmt.Fprintf(f, "Section: golang\n")
+	fmt.Fprintf(f, "Priority: optional\n")
 	fmt.Fprintf(f, "Maintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>\n")
 	fprintfControlField(f, "Uploaders", []string{getDebianName() + " <" + getDebianEmail() + ">"})
-	fmt.Fprintf(f, "Section: golang\n")
-	fmt.Fprintf(f, "Testsuite: autopkgtest-pkg-go\n")
-	fmt.Fprintf(f, "Priority: optional\n")
+	fmt.Fprintf(f, "Rules-Requires-Root: no\n")
 
 	builddeps := append([]string{
 		"debhelper-compat (= 13)",
-		"dh-golang",
+		"dh-sequence-golang",
 		"golang-any"},
 		dependencies...)
 	sort.Strings(builddeps)
 	fprintfControlField(f, "Build-Depends", builddeps)
 
-	fmt.Fprintf(f, "Standards-Version: 4.6.0\n")
+	fmt.Fprintf(f, "Testsuite: autopkgtest-pkg-go\n")
+	fmt.Fprintf(f, "Standards-Version: 4.6.2\n")
 	fmt.Fprintf(f, "Vcs-Browser: https://salsa.debian.org/go-team/packages/%s\n", debsrc)
 	fmt.Fprintf(f, "Vcs-Git: https://salsa.debian.org/go-team/packages/%s.git\n", debsrc)
 	fmt.Fprintf(f, "Homepage: %s\n", getHomepageForGopkg(gopkg))
-	fmt.Fprintf(f, "Rules-Requires-Root: no\n")
 	fmt.Fprintf(f, "XS-Go-Import-Path: %s\n", gopkg)
 
 	// Binary package(s):
@@ -225,9 +260,9 @@ func writeDebianCopyright(dir, gopkg string, vendorDirs []string, hasGodeps bool
 	}
 
 	fmt.Fprintf(f, "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/\n")
+	fmt.Fprintf(f, "Source: %s\n", getHomepageForGopkg(gopkg))
 	fmt.Fprintf(f, "Upstream-Name: %s\n", filepath.Base(gopkg))
 	fmt.Fprintf(f, "Upstream-Contact: TODO\n")
-	fmt.Fprintf(f, "Source: %s\n", getHomepageForGopkg(gopkg))
 	if len(vendorDirs) > 0 || hasGodeps {
 		fmt.Fprintf(f, "Files-Excluded:\n")
 		for _, dir := range vendorDirs {
@@ -264,7 +299,7 @@ func writeDebianRules(dir string, pkgType packageType) error {
 	fmt.Fprintf(f, "#!/usr/bin/make -f\n")
 	fmt.Fprintf(f, "\n")
 	fmt.Fprintf(f, "%%:\n")
-	fmt.Fprintf(f, "\tdh $@ --builddirectory=_build --buildsystem=golang --with=golang\n")
+	fmt.Fprintf(f, "\tdh $@ --builddirectory=_build --buildsystem=golang\n")
 	if pkgType == typeProgram {
 		fmt.Fprintf(f, "\n")
 		fmt.Fprintf(f, "override_dh_auto_install:\n")
