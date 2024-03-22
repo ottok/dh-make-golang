@@ -2,19 +2,19 @@ Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Source: https://github.com/Debian/dh-make-golang
 Upstream-Name: dh-make-golang
 
-Files:
- *
-Copyright:
- 2015-2019 Michael Stapelberg, Google Inc. and contributors
+Files: *
+Copyright: 2015-2019 Michael Stapelberg, Google Inc. and contributors
 License: BSD-3-clause
 
-Files:
- debian/*
-Copyright:
- 2015-2017 Michael Stapelberg <stapelberg@debian.org>
- 2016-2019 Dr. Tobias Quathamer <toddy@debian.org>
+Files: debian/*
+Copyright: 2015-2017 Michael Stapelberg <stapelberg@debian.org>
+           2016-2019 Dr. Tobias Quathamer <toddy@debian.org>
 License: BSD-3-clause
 Comment: Debian packaging is licensed under the same terms as upstream
+
+Files: debian/go/src/golang.org/x/tools/go/vcs/*
+Copyright: 2009 The Go Authors
+License: BSD-3-clause
 
 License: BSD-3-clause
  Copyright © 2015, Michael Stapelberg, Google Inc. and contributors
