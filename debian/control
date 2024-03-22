@@ -1,5 +1,5 @@
 Source: dh-make-golang
-Section: devel
+Section: golang
 Priority: optional
 Maintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>
 Uploaders: Michael Stapelberg <stapelberg@debian.org>,
