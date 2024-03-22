@@ -1,3 +1,107 @@
+dh-make-golang (0.7.0-1) unstable; urgency=medium
+
+  * New upstream version 0.7.0
+
+    [ Guillem Jover ]
+    * Use new dh-sequence-golang instead of dh-golang and --with=golang
+  
+    * Add mongodb to known hosts.
+      This is required by the go.mongodb.org/mongo-driver modules.
+  
+    * Generate a debian/.gitignore file.
+      This helps ignoring artifacts that git should not track, and which it
+      can safely clean.
+  
+    * Reorder generated fields.
+  
+      While stylistic, the rationale for these changes is as follows:
+  
+      = debian/control
+  
+      - Group Section and Priority together as these categorize the package,
+        and place them after Source or Package fields, as this determines
+        where in the archive these might end up.
+      - Place Maintainer/Uploader after these, as the responsible party for
+        the package.
+      - Move Rules-Requires-Root before Build-Depends, as this determines
+        how to drive the building process, and might impose additional
+        dependencies, such as fakeroot or sudo.
+      - Move the Testsuite after the Build-Depends, as this is part of the
+        runnable metadata.
+  
+      = debian/copyright
+  
+      - Move the Source field after Format, as both line up, refer to an
+        URL, and it's the first reference to the upstream project.
+  
+    * Set a Section: TODO field for program packages.
+      The golang section is for Go development packages, the fact that a
+      program is written in Go is generally of no major relevance for the
+      user, and instead a more suitable section relative to its actual
+      functionality should be used, to help a proper categorization in the
+      archive.
+  
+    [ dependabot ]
+    * Bump github.com/mattn/go-isatty from 0.0.13 to 0.0.14
+  
+    [ Taavi Väänänen ]
+    * make: download tarballs from sr.ht
+      and add a test for the tarball URL generation.
+  
+    [ Anthony Fok ]
+    * Bump glamour requirement to get bluemonday v1.0.16
+    * Fix empty tarball in case of "unsupported hoster".
+      This fixes the error that I introduced on 2021-08-26 in commit 64dccd7
+      "Refactor the logic on whether to download upstream tarball"
+      Thanks to @mdosch for the report and @creekorful for tips on error
+      handling.  Fixes #180, fixes #190 (Closes: #993703, #1064567)
+    * Handle salsa.debian.org too in tarballFromHoster()
+      to fetch pristine tarball (.gz) instead of compressing our own (.xz)
+    * Set u.remote as "salsa" instead of "debian" for salsa.debian.org
+      to avoid git remote and git branch containing the same "debian" name
+    * Add modernc.org as "modernc" to knownHosts
+    * Use https for Apache license link
+    * Create dependabot.yml
+    * Update .github/workflows/ci-test.yml to test with go1.18
+    * Replace deprecated ioutil functions with their io or os equilvalents
+    * Add --no-show-signature to "git log --pretty=format:%ct -n1" call
+      so the timestamp can be read correctly even if the user has set
+      log.showSignature to true in git config. (Closes: #1035321)
+    * Bump dependencies:
+      - Bump go from 1.16 to 1.21
+      - Bump golang.org/x/net from v0.0.0-20210614182718-04defd469f4e to v0.21.0
+      - Bump golang.org/x/mod from v0.5.1 to v0.15.0
+      - Bump github.com/google/go-github/v38 to github.com/google/go-github/v60
+      - Add golang.org/x/tools/go/vcs v0.1.0-deprecated
+      - etc.
+      Fixes #200, fixes #203
+    * ci-test: Bump go version to 1.21 and 1.22 for testing
+    * make: Unset GO111MODULE=off so that "go list" works with Go 1.21+.
+      This fixes dh-make-golang’s failure to determine dependencies
+      since 2023-08-21 when Go 1.21 became the default in Debian.
+      (Closes: #1050523)
+  
+    [ Maytham Alsudany ]
+    * Bump template Standards-Version to 4.6.2 in template.go
+  
+    [ Reinhard Tartler ]
+    * Tolerate "errornous" packages in go list
+      Fixes: #204
+
+  * Reorder fields in debian/control
+  * Change Section from devel to golang
+  * Use dh-sequence-golang instead of dh-golang and --with=golang
+  * Update versioned dependencies as per go.mod
+  * Bump Standards-Version to 4.6.2 (no change)
+  * Include our own copy of golang.org/x/tools/go/vcs@v0.1.0-deprecated
+    (Closes: #1043070)
+  * Replace Built-Using field with Static-Built-Using
+  * Remove 01-Update-the-import-path-of-golang-github-google-go-github.patch
+    and use debian/rules to strip off major version (e.g. v60) from
+    github.com/google/go-github/v60/github instead.
+
+ -- Anthony Fok <foka@debian.org>  Fri, 22 Mar 2024 06:08:43 -0600
+
 dh-make-golang (0.6.0-2) unstable; urgency=medium
 
   * Team upload.
