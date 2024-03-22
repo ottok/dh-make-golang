@@ -9,6 +9,9 @@ execute_after_dh_auto_configure:
 	# golang.org/x/tools/go/vcs v0.1.0-deprecated
 	ln -s $(CURDIR)/debian/go/src \
 	    _build/src/github.com/Debian/dh-make-golang/vendor
+	# github.com/google/go-github/github (with Go modules disabled)
+	sed -i -e 's#go-github/v[0-9]\+/github#go-github/github#' \
+	    _build/src/github.com/Debian/dh-make-golang/main.go
 
 override_dh_auto_install:
 	dh_auto_install -- --no-source
