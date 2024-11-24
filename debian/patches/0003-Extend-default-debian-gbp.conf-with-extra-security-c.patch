@@ -1,0 +1,46 @@
+From: =?utf-8?b?T3R0byBLZWvDpGzDpGluZW4=?= <otto@debian.org>
+Date: Thu, 21 Nov 2024 00:20:25 -0800
+Subject: Extend default debian/gbp.conf with extra security config tips
+
+When creating a new package, populate the git-buildpackage with additional
+configs and in-line comments on why and how to use them. This will make
+go packaging easier, more consistent and more secure as the best practices
+flow to all packages via good defaults.
+---
+ template.go | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/template.go b/template.go
+index 74cca68..837e3ff 100644
+--- a/template.go
++++ b/template.go
+@@ -344,6 +344,29 @@ func writeDebianGbpConf(dir string, dep14, pristineTar bool) error {
+ 	if pristineTar {
+ 		fmt.Fprintf(f, "pristine-tar = True\n")
+ 	}
++
++	// Additional text to the template which is useful for 99% of the go packages
++	fmt.Fprint(f, `
++# Lax requirement to use branch name 'debian/latest' so that git-buildpackage
++# will always build using the currently checked out branch as the Debian branch.
++# This makes it easier for contributors to work with feature and bugfix
++# branches.
++ignore-branch = True
++
++# Configure the upstream tag format below, so that 'gbp import-orig' will run
++# correctly, and link tarball import branch ('upstream/latest') with the
++# equivalent upstream release tag, showing a complete audit trail of what
++# upstream released and what was imported into Debian.
++#
++# Most go packages have tags of form 'v1.0.0'
++#upstream-vcs-tag = v%(version%~%-)s
++
++# Check that upstream signed git tags (options: auto|on|off)
++#upstream-signatures = on
++
++# Ensure the Debian maintainer signs git tags automatically
++#sign-tags = True
++`)
+ 	return nil
+ }
+ 
