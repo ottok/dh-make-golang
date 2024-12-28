@@ -2,3 +2,4 @@
 0002-Always-call-upstream-git-remote-upstreamvcs.patch
 0003-Extend-default-debian-gbp.conf-with-extra-security-c.patch
 0004-Stop-modifying-upstream-.gitignore-file.patch
+0005-Update-test-to-be-compatible-with-latest-Glamour-v0..patch

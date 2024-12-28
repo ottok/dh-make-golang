@@ -1,0 +1,30 @@
+From: =?utf-8?b?T3R0byBLZWvDpGzDpGluZW4=?= <otto@debian.org>
+Date: Sat, 28 Dec 2024 12:52:19 -0800
+Subject: Update test to be compatible with latest Glamour v0.8.0
+
+Latest src:golang-github-charmbracelet-glamour 0.8.0-1 caused the tests
+in dh-make-golang to fail due slightly changed line wrapping. Fix this by
+updating the tests to match the new expected output.
+---
+ description_test.go | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/description_test.go b/description_test.go
+index 12acec9..97b10c9 100644
+--- a/description_test.go
++++ b/description_test.go
+@@ -85,10 +85,10 @@ the command-line.
+  .
+   1. Call glamour.Render(inputText, "desiredStyle")
+   2. Set the GLAMOUR_STYLE environment variable to your desired default
+-     style or a file location for a style and call
+-     glamour.RenderWithEnvironmentConfig(inputText)
+-  3. Set the GLAMOUR_STYLE environment variable and pass
+-     glamour.WithEnvironmentConfig() to your custom renderer
++     style or a file location for a style and call glamour.
++     RenderWithEnvironmentConfig(inputText)
++  3. Set the GLAMOUR_STYLE environment variable and pass glamour.
++     WithEnvironmentConfig() to your custom renderer
+  .
+  Glamourous Projects
+  .
