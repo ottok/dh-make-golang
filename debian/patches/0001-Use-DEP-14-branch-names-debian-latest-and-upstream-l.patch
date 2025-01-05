@@ -1,0 +1,82 @@
+From: =?utf-8?b?T3R0byBLZWvDpGzDpGluZW4=?= <otto@debian.org>
+Date: Tue, 19 Nov 2024 22:21:58 -0800
+Subject: Use DEP-14 branch names `debian/latest` and `upstream/latest`
+
+In DEP-14, the preferred branch name for the Debian packaging target
+branch is `debian/latest` and the preferred name for the upstream import
+target branch is `upstream/latest`.
+
+Note that the upstream development branch name can be whatever and should
+stay as it is upstream, typically `main` or `master`. The branch
+`upstream/latest` should not point to the latest upstream development
+commit, but to the latest commit that was used as the upstream release
+that the Debian revision was derived from.
+---
+ make.go     | 11 +++++++----
+ template.go |  3 ++-
+ 2 files changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/make.go b/make.go
+index 9f48c07..b768095 100644
+--- a/make.go
++++ b/make.go
+@@ -413,7 +413,7 @@ func runGitCommandIn(dir string, arg ...string) error {
+ }
+ 
+ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
+-	includeUpstreamHistory bool, allowUnknownHoster bool, debianBranch string, pristineTar bool) (string, error) {
++	includeUpstreamHistory bool, allowUnknownHoster bool, debianBranch string, dep14 bool, pristineTar bool) (string, error) {
+ 	wd, err := os.Getwd()
+ 	if err != nil {
+ 		return "", fmt.Errorf("get cwd: %w", err)
+@@ -468,7 +468,7 @@ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
+ 
+ 	// Preconfigure branches
+ 
+-	branches := []string{debianBranch, "upstream"}
++	branches := []string{debianBranch, "upstream/latest"}
+ 	if pristineTar {
+ 		branches = append(branches, "pristine-tar")
+ 	}
+@@ -502,6 +502,9 @@ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
+ 	// Import upstream orig tarball
+ 
+ 	arg := []string{"import-orig", "--no-interactive", "--debian-branch=" + debianBranch}
++	if dep14 {
++		arg = append(arg, "--upstream-branch=upstream/latest")
++	}
+ 	if pristineTar {
+ 		arg = append(arg, "--pristine-tar")
+ 	}
+@@ -892,7 +895,7 @@ func execMake(args []string, usage func()) {
+ 	// Set the debian branch.
+ 	debBranch := "master"
+ 	if dep14 {
+-		debBranch = "debian/sid"
++		debBranch = "debian/latest"
+ 	}
+ 
+ 	switch strings.TrimSpace(wrapAndSort) {
+@@ -983,7 +986,7 @@ func execMake(args []string, usage func()) {
+ 
+ 	debversion := u.version + "-1"
+ 
+-	dir, err := createGitRepository(debsrc, gopkg, orig, u, includeUpstreamHistory, allowUnknownHoster, debBranch, pristineTar)
++	dir, err := createGitRepository(debsrc, gopkg, orig, u, includeUpstreamHistory, allowUnknownHoster, debBranch, dep14, pristineTar)
+ 	if err != nil {
+ 		log.Fatalf("Could not create git repository: %v\n", err)
+ 	}
+diff --git a/template.go b/template.go
+index 4c87c7d..74cca68 100644
+--- a/template.go
++++ b/template.go
+@@ -337,7 +337,8 @@ func writeDebianGbpConf(dir string, dep14, pristineTar bool) error {
+ 
+ 	fmt.Fprintf(f, "[DEFAULT]\n")
+ 	if dep14 {
+-		fmt.Fprintf(f, "debian-branch = debian/sid\n")
++		fmt.Fprintf(f, "debian-branch = debian/latest\n")
++		fmt.Fprintf(f, "upstream-branch = upstream/latest\n")
+ 		fmt.Fprintf(f, "dist = DEP14\n")
+ 	}
+ 	if pristineTar {

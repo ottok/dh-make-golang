@@ -1,0 +1,25 @@
+From: =?utf-8?b?T3R0byBLZWvDpGzDpGluZW4=?= <otto@debian.org>
+Date: Sat, 28 Dec 2024 12:42:06 -0800
+Subject: Include cross-links in man pages
+
+Make dh_golang and dh-make-golang easier to discover by people
+eading man pages about Go packaging in Debian.
+---
+ dh-make-golang.md | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/dh-make-golang.md b/dh-make-golang.md
+index d379d2c..351888e 100644
+--- a/dh-make-golang.md
++++ b/dh-make-golang.md
+@@ -40,6 +40,10 @@ command is executed. To learn more about a command, run
+ 
+ Run **dh-make-golang** -help for more details.
+ 
++# SEE ALSO
++
++**dh**(1), **dh_golang**(1), **Debian::Debhelper::Buildsystem::golang**(3pm)
++
+ # AUTHOR
+ 
+ This manual page was written by Michael Stapelberg <stapelberg@debian.org>

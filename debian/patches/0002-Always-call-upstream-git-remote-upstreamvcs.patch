@@ -1,0 +1,33 @@
+From: =?utf-8?b?T3R0byBLZWvDpGzDpGluZW4=?= <otto@debian.org>
+Date: Thu, 21 Nov 2024 00:18:30 -0800
+Subject: Always call upstream git remote `upstreamvcs`
+
+Instead of using various different upstream remote names, use the one and
+same upstream git remote name consistently. As the name pick `upstreamvcs`
+just as git-buildpackage does, so that if anybody runs `gbp clone` they
+will automatically end up with the same git remotes and branches as anyone
+in to go-team.
+---
+ make.go | 9 ++-------
+ 1 file changed, 2 insertions(+), 7 deletions(-)
+
+diff --git a/make.go b/make.go
+index b768095..6857578 100644
+--- a/make.go
++++ b/make.go
+@@ -482,13 +482,8 @@ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
+ 	}
+ 
+ 	if includeUpstreamHistory {
+-		u.remote, err = shortHostName(gopkg, allowUnknownHoster)
+-		if err != nil {
+-			return dir, fmt.Errorf("unable to fetch upstream history: %q", err)
+-		}
+-		if u.remote == "debian" {
+-			u.remote = "salsa"
+-		}
++		// Always call the upstream git remote 'upstreamvcs' just like git-buildpackage does
++		u.remote = "upstreamvcs"
+ 		log.Printf("Adding remote %q with URL %q\n", u.remote, u.rr.Repo)
+ 		if err := runGitCommandIn(dir, "remote", "add", u.remote, u.rr.Repo); err != nil {
+ 			return dir, fmt.Errorf("git remote add %s %s: %w", u.remote, u.rr.Repo, err)
