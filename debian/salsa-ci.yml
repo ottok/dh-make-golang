@@ -1,3 +1,35 @@
+# DO NOT MODIFY
+# This file was automatically generated from authoritative copy at:
+# https://salsa.debian.org/go-team/infra/pkg-go-tools/blob/master/config/gitlabciyml.go
 ---
 include:
-  - local: 'gitlab-ci.yml'
+  - project: go-team/infra/pkg-go-tools
+    ref: master
+    file: pipeline/test-archive.yml
+    # Run the Go team CI only in the go-team project that has access to GitLab
+    # CI runners tagged 'go-ci'
+    rules:
+      - if: $CI_PROJECT_ROOT_NAMESPACE  == "go-team"
+
+# Additionally run Salsa CI, except on a tag push, as Salsa CI does not run on
+# tag pushes
+Salsa CI:
+  stage: test
+  trigger:
+    include:
+      - project: salsa-ci-team/pipeline
+        ref: master
+        file: recipes/debian.yml
+    strategy: depend
+  rules:
+    # run if user manually presses the "play" icon on pipeline
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+    # run during for scheduled pipeline runs
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: always
+    # run always if not in go-team, as otherwise there would be no CI
+    - if: $CI_PROJECT_ROOT_NAMESPACE  != "go-team"
+      when: always
+    # never allow other pipeline sources to trigger running this job
+    - when: never
