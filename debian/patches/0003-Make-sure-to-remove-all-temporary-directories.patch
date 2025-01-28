@@ -1,0 +1,90 @@
+From: Nicolas Peugnet <nicolas@club1.fr>
+Date: Sun, 5 Jan 2025 23:42:29 +0100
+Subject: Make sure to remove all temporary directories
+
+Previously, some files could not be removed because of the directories
+permissions, which made os.RemoveAll() fail silently and left a lot of
+garbage files in /tmp.
+
+This commit adds a new forceRemoveAll() function that removes all files
+and directories more reliably, in a new fs_utils.go file for filesystem
+utilities. isFile() is also moved to this new file.
+
+Also log errors when forceRemoveAll fails to detect these issues sooner
+in the future.
+---
+ estimate.go | 13 +++++--------
+ fs_utils.go | 34 ++++++++++++++++++++++++++++++++++
+ 2 files changed, 39 insertions(+), 8 deletions(-)
+ create mode 100644 fs_utils.go
+
+diff --git a/estimate.go b/estimate.go
+index e32de7f..dfadc5d 100644
+--- a/estimate.go
++++ b/estimate.go
+@@ -68,20 +68,17 @@ func removeVendor(gopath string) (found bool, _ error) {
+ 	return found, err
+ }
+ 
+-func isFile(path string) bool {
+-	if info, err := os.Stat(path); err == nil {
+-		return !info.IsDir()
+-	}
+-	return false
+-}
+-
+ func estimate(importpath string) error {
+ 	// construct a separate GOPATH in a temporary directory
+ 	gopath, err := os.MkdirTemp("", "dh-make-golang")
+ 	if err != nil {
+ 		return fmt.Errorf("create temp dir: %w", err)
+ 	}
+-	defer os.RemoveAll(gopath)
++	defer func() {
++		if err := forceRemoveAll(gopath); err != nil {
++			log.Printf("could not remove all %s: %v", gopath, err)
++		}
++	}()
+ 
+ 	// clone the repo inside the src directory of the GOPATH
+ 	// and init a Go module if it is not yet one.
+diff --git a/fs_utils.go b/fs_utils.go
+new file mode 100644
+index 0000000..2b57833
+--- /dev/null
++++ b/fs_utils.go
+@@ -0,0 +1,34 @@
++package main
++
++import (
++	"io/fs"
++	"os"
++	"path/filepath"
++)
++
++// isFile checks if a path exists and is a file (not a directory).
++func isFile(path string) bool {
++	if info, err := os.Stat(path); err == nil {
++		return !info.IsDir()
++	}
++	return false
++}
++
++// forceRemoveAll is a more robust alternative to [os.RemoveAll] that tries
++// harder to remove all the files and directories.
++func forceRemoveAll(path string) error {
++	// first pass to make sure all the directories are writable
++	err := filepath.Walk(path, func(path string, info fs.FileInfo, err error) error {
++		if info.IsDir() {
++			return os.Chmod(path, 0777)
++		} else {
++			// remove files by the way
++			return os.Remove(path)
++		}
++	})
++	if err != nil {
++		return err
++	}
++	// remove the remaining directories
++	return os.RemoveAll(path)
++}

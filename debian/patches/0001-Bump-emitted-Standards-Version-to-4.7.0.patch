@@ -1,0 +1,35 @@
+From: Guillem Jover <gjover@sipwise.com>
+Date: Thu, 29 Aug 2024 18:42:36 +0200
+Subject: Bump emitted Standards-Version to 4.7.0
+
+---
+ check_depends_test.go | 2 +-
+ template.go           | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/check_depends_test.go b/check_depends_test.go
+index 4f89b12..4881ba7 100644
+--- a/check_depends_test.go
++++ b/check_depends_test.go
+@@ -24,7 +24,7 @@ Build-Depends:
+  golang-github-jroimartin-gocui-dev,
+  golang-github-mattn-go-sqlite3-dev,
+  golang-github-mmcdole-gofeed-dev,
+-Standards-Version: 4.5.1
++Standards-Version: 4.7.0
+ Vcs-Browser: https://salsa.debian.org/go-team/packages/terminews
+ Vcs-Git: https://salsa.debian.org/go-team/packages/terminews.git
+ Homepage: https://github.com/antavelos/terminews
+diff --git a/template.go b/template.go
+index 4c87c7d..dc4f5c5 100644
+--- a/template.go
++++ b/template.go
+@@ -206,7 +206,7 @@ func writeDebianControl(dir, gopkg, debsrc, debLib, debProg string, pkgType pack
+ 	fprintfControlField(f, "Build-Depends", builddeps)
+ 
+ 	fmt.Fprintf(f, "Testsuite: autopkgtest-pkg-go\n")
+-	fmt.Fprintf(f, "Standards-Version: 4.6.2\n")
++	fmt.Fprintf(f, "Standards-Version: 4.7.0\n")
+ 	fmt.Fprintf(f, "Vcs-Browser: https://salsa.debian.org/go-team/packages/%s\n", debsrc)
+ 	fmt.Fprintf(f, "Vcs-Git: https://salsa.debian.org/go-team/packages/%s.git\n", debsrc)
+ 	fmt.Fprintf(f, "Homepage: %s\n", getHomepageForGopkg(gopkg))

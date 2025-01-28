@@ -1,0 +1,18 @@
+From: Nicolas Peugnet <nicolas@club1.fr>
+Date: Tue, 21 Jan 2025 01:08:01 +0100
+Subject: Use current URL for CI badge
+
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index 0a400a7..a237980 100644
+--- a/README.md
++++ b/README.md
+@@ -1,4 +1,4 @@
+-![CI Test](https://github.com/anthonyfok/dh-make-golang/actions/workflows/ci-test.yml/badge.svg)
++![CI Test](https://github.com/Debian/dh-make-golang/actions/workflows/ci-test.yml/badge.svg)
+ 
+ dh-make-golang is a tool to automatically create Debian packaging for Go
+ packages. Its goal is to automate away as much of the work as possible when

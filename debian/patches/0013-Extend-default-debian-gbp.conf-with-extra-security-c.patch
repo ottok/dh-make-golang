@@ -1,0 +1,75 @@
+From: =?utf-8?b?T3R0byBLZWvDpGzDpGluZW4=?= <otto@debian.org>
+Date: Thu, 21 Nov 2024 00:20:25 -0800
+Subject: Extend default debian/gbp.conf with extra security config tips
+
+When creating a new package, populate the git-buildpackage with additional
+configs and in-line comments on why and how to use them. This will make
+go packaging easier, more consistent and more secure as the best practices
+flow to all packages via good defaults.
+
+Also add comment to explain why pristine-tar is beneficial.
+---
+ make.go     |  3 ++-
+ template.go | 34 +++++++++++++++++++++++++++++++++-
+ 2 files changed, 35 insertions(+), 2 deletions(-)
+
+diff --git a/make.go b/make.go
+index 991ce6c..5862fea 100644
+--- a/make.go
++++ b/make.go
+@@ -416,7 +416,8 @@ func runGitCommandIn(dir string, arg ...string) error {
+ }
+ 
+ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
+-	includeUpstreamHistory bool, allowUnknownHoster bool, debianBranch string, dep14 bool, pristineTar bool) (string, error) {
++	includeUpstreamHistory bool, allowUnknownHoster bool, debianBranch string,
++	dep14 bool, pristineTar bool) (string, error) {
+ 
+ 	// debianBranch is passed in function call, but upstream import branch needs
+ 	// also to be defined
+diff --git a/template.go b/template.go
+index 2b34248..86177d0 100644
+--- a/template.go
++++ b/template.go
+@@ -342,8 +342,40 @@ func writeDebianGbpConf(dir string, dep14, pristineTar bool) error {
+ 		fmt.Fprintf(f, "dist = DEP14\n")
+ 	}
+ 	if pristineTar {
+-		fmt.Fprintf(f, "pristine-tar = True\n")
++		fmt.Fprintf(f, `
++# Always use pristine tar to improve supply chain security and auditability
++pristine-tar = True
++
++`)
+ 	}
++
++	// Additional text to the template which is useful for 99% of the go packages
++	fmt.Fprint(f, `
++# Lax requirement to use branch name 'debian/latest' so that git-buildpackage
++# will always build using the currently checked out branch as the Debian branch.
++# This makes it easier for contributors to work with feature and bugfix
++# branches.
++ignore-branch = True
++
++# Configure the upstream tag format below, so that 'gbp import-orig' will run
++# correctly, and link tarball import branch ('upstream/latest') with the
++# equivalent upstream release tag, showing a complete audit trail of what
++# upstream released and what was imported into Debian.
++#
++# Most Go packages have tags of form 'v1.0.0'
++upstream-vcs-tag = v%(version%~%-)s
++
++# If upstream publishes tarball signatures, git-buildpackage will by default
++# import and use the them. Change this to 'on' to make 'gbp import-orig' abort
++# if the signature is not found or is not valid.
++#
++# Most Go packages don't publish signatures for the tarball releases, so this is
++# not enabled by default.
++#upstream-signatures = on
++
++# Ensure the Debian maintainer signs git tags automatically
++sign-tags = True
++`)
+ 	return nil
+ }
+ 
