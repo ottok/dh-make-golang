@@ -177,7 +177,7 @@ func addProgramPackage(f *os.File, gopkg, debProg string) {
 	fmt.Fprintf(f, "Architecture: any\n")
 	deps := []string{"${misc:Depends}", "${shlibs:Depends}"}
 	fprintfControlField(f, "Depends", deps)
-	fmt.Fprintf(f, "Built-Using: ${misc:Built-Using}\n")
+	fmt.Fprintf(f, "Static-Built-Using: ${misc:Static-Built-Using}\n")
 	addDescription(f, gopkg, "(program)")
 }
 
@@ -206,7 +206,7 @@ func writeDebianControl(dir, gopkg, debsrc, debLib, debProg string, pkgType pack
 	fprintfControlField(f, "Build-Depends", builddeps)
 
 	fmt.Fprintf(f, "Testsuite: autopkgtest-pkg-go\n")
-	fmt.Fprintf(f, "Standards-Version: 4.6.2\n")
+	fmt.Fprintf(f, "Standards-Version: 4.7.0\n")
 	fmt.Fprintf(f, "Vcs-Browser: https://salsa.debian.org/go-team/packages/%s\n", debsrc)
 	fmt.Fprintf(f, "Vcs-Git: https://salsa.debian.org/go-team/packages/%s.git\n", debsrc)
 	fmt.Fprintf(f, "Homepage: %s\n", getHomepageForGopkg(gopkg))
@@ -266,19 +266,19 @@ func writeDebianCopyright(dir, gopkg string, vendorDirs []string, hasGodeps bool
 	if len(vendorDirs) > 0 || hasGodeps {
 		fmt.Fprintf(f, "Files-Excluded:\n")
 		for _, dir := range vendorDirs {
-			fmt.Fprintf(f, indent+"%s\n", dir)
+			fmt.Fprintf(f, "%s%s\n", indent, dir)
 		}
 		if hasGodeps {
-			fmt.Fprintf(f, indent+"Godeps/_workspace\n")
+			fmt.Fprintf(f, "%sGodeps/_workspace\n", indent)
 		}
 	}
 	fmt.Fprintf(f, "\n")
-	fmt.Fprintf(f, "Files:"+linebreak+" *\n")
-	fmt.Fprintf(f, "Copyright:"+linebreak+" %s\n", copyright)
+	fmt.Fprintf(f, "Files:%s *\n", linebreak)
+	fmt.Fprintf(f, "Copyright:%s %s\n", linebreak, copyright)
 	fmt.Fprintf(f, "License: %s\n", license)
 	fmt.Fprintf(f, "\n")
-	fmt.Fprintf(f, "Files:"+linebreak+" debian/*\n")
-	fmt.Fprintf(f, "Copyright:"+linebreak+" %s %s <%s>\n", time.Now().Format("2006"), getDebianName(), getDebianEmail())
+	fmt.Fprintf(f, "Files:%s debian/*\n", linebreak)
+	fmt.Fprintf(f, "Copyright:%s %s %s <%s>\n", linebreak, time.Now().Format("2006"), getDebianName(), getDebianEmail())
 	fmt.Fprintf(f, "License: %s\n", license)
 	fmt.Fprintf(f, "Comment: Debian packaging is licensed under the same terms as upstream\n")
 	fmt.Fprintf(f, "\n")
@@ -460,12 +460,53 @@ func writeDebianUpstreamMetadata(dir, gopkg string) error {
 }
 
 func writeDebianGitLabCI(dir string) error {
-	const gitlabciymlTmpl = `# auto-generated, DO NOT MODIFY.
-# The authoritative copy of this file lives at:
+	const gitlabciymlTmpl = `# DO NOT MODIFY
+# This file was automatically generated from the authoritative copy at:
 # https://salsa.debian.org/go-team/infra/pkg-go-tools/blob/master/config/gitlabciyml.go
 ---
+stages:
+  - test
+  - package
+
 include:
-  - https://salsa.debian.org/go-team/infra/pkg-go-tools/-/raw/master/pipeline/test-archive.yml
+  - project: go-team/infra/pkg-go-tools
+    ref: master
+    file: pipeline/test-archive.yml
+    # Run the Go team CI only in the go-team project that has access to GitLab
+    # CI runners tagged 'go-ci'
+    rules:
+      - if: $CI_PROJECT_ROOT_NAMESPACE  == "go-team"
+
+Salsa CI:
+  stage: package
+  trigger:
+    include:
+      - project: salsa-ci-team/pipeline
+        ref: master
+        file: recipes/debian.yml
+    strategy: depend
+  rules:
+    # Do not create a pipeline for tags unless SALSA_CI_ENABLE_PIPELINE_ON_TAGS is set
+    - if: $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+      when: never
+    # Avoid duplicated pipelines, do not run detached pipelines
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    # Run Salsa CI only if the Play button is pressed on the pipeline
+    - if: $CI_PIPELINE_SOURCE == "push"
+      when: manual
+  variables:
+    SALSA_CI_DISABLE_REPROTEST: 1 # Disable to save CI runner resources
+
+# If Salsa CI is not running at
+# https://salsa.debian.org/%{project_path}/-/pipelines, ensure that
+# https://salsa.debian.org/%{project_path}/-/settings/ci_cd has in field "CI/CD
+# configuration file" the same filename as this file.
+#
+# If Salsa CI is running, but first job is stuck because the project doesn't
+# have any runners online assigned to it, ensure that
+# https://salsa.debian.org/%{project_path}/-/settings/ci_cd has under "Runners"
+# the setting for "Enable instance runners for this project" enabled.
 `
 
 	f, err := os.Create(filepath.Join(dir, "debian", "gitlab-ci.yml"))
