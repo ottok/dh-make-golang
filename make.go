@@ -161,6 +161,9 @@ func (u *upstream) tarballUrl() (string, error) {
 	case "git.sr.ht":
 		return fmt.Sprintf("%s/archive/%s.tar.%s",
 			repo, u.tag, u.compression), nil
+	case "codeberg.org":
+		return fmt.Sprintf("%s/archive/%s.tar.%s",
+			repo, u.tag, u.compression), nil
 	default:
 		return "", errUnsupportedHoster
 	}
@@ -423,17 +426,8 @@ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
 		return "", fmt.Errorf("mkdir: %w", err)
 	}
 
-	// "git init -b" is the one-liner we need here, however it was added in Git 2.28.
-	// For now we prefer to keep compatibility with older Git, so we do it in two
-	// rounds, "git init" then "git checkout".
-	//if err := runGitCommandIn(dir, "init", "-b", debianBranch); err != nil {
-	//	return dir, err
-	//}
-	if err := runGitCommandIn(dir, "init"); err != nil {
+	if err := runGitCommandIn(dir, "init", "-b", debianBranch); err != nil {
 		return dir, fmt.Errorf("git init: %w", err)
-	}
-	if err := runGitCommandIn(dir, "checkout", "-q", "-b", debianBranch); err != nil {
-		return dir, fmt.Errorf("git checkout: %w", err)
 	}
 
 	// Set repository options
@@ -493,8 +487,8 @@ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
 		if err := runGitCommandIn(dir, "remote", "add", u.remote, u.rr.Repo); err != nil {
 			return dir, fmt.Errorf("git remote add %s %s: %w", u.remote, u.rr.Repo, err)
 		}
-		log.Printf("Running \"git fetch %s\"\n", u.remote)
-		if err := runGitCommandIn(dir, "fetch", u.remote); err != nil {
+		log.Printf("Running \"git fetch --tags %s\"\n", u.remote)
+		if err := runGitCommandIn(dir, "fetch", "--tags", u.remote); err != nil {
 			return dir, fmt.Errorf("git fetch %s: %w", u.remote, err)
 		}
 	}
@@ -579,6 +573,7 @@ func shortHostName(gopkg string, allowUnknownHoster bool) (host string, err erro
 		"blitiri.com.ar":       "blitiri",
 		"cloud.google.com":     "googlecloud",
 		"code.google.com":      "googlecode",
+		"codeberg.org":         "codeberg",
 		"filippo.io":           "filippo",
 		"fyne.io":              "fyne",
 		"git.sr.ht":            "sourcehut",
@@ -827,7 +822,7 @@ func execMake(args []string, usage func()) {
 
 	fs.StringVar(&wrapAndSort,
 		"wrap-and-sort",
-		"a",
+		"at",
 		"Set how the various multi-line fields in debian/control are formatted.\n"+
 			"Valid values are \"a\", \"at\" and \"ast\", see wrap-and-sort(1) man page\n"+
 			"for more information.")
@@ -1050,11 +1045,6 @@ func execMake(args []string, usage func()) {
 	fmt.Printf("\n")
 
 	if includeUpstreamHistory {
-		fmt.Printf("NOTE: Full upstream git history has been included as per pkg-go team's\n")
-		fmt.Printf("      new workflow.  This feature is new and somewhat experimental,\n")
-		fmt.Printf("      and all feedback are welcome!\n")
-		fmt.Printf("      (For old behavior, use --upstream_git_history=false)\n")
-		fmt.Printf("\n")
 		fmt.Printf("The upstream git history is being tracked with the remote named %q.\n", u.remote)
 		fmt.Printf("To upgrade to the latest upstream version, you may use something like:\n")
 		fmt.Printf("    git fetch %-15v # note the latest tag or commit-ish\n", u.remote)
