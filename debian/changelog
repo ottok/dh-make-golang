@@ -1,23 +1,72 @@
+dh-make-golang (0.8.0-1) unstable; urgency=medium
+
+  * New upstream release 0.8.0.
+
+    [ Martina Ferrari ]
+    * d/control: add myself to Uploaders, bump Standards-Version with no
+      changes.
+
+  [ Guillem Jover ]
+  * Switch to Static-Built-Using field and substvar.
+  * Bump emitted Standards-Version to 4.7.0.
+  * Remove NOTE about upstream git history being a new feature.
+
+  [ William Lyu ]
+  * Fix release tags not recognized when not on a branch.
+
+  [ Nicolas Peugnet ]
+  * Apply wrap-and-sort -at by default.
+  * Fix dh-make-golang estimate.
+  * Make sure to remove all temporary directories.
+  * More robust version of estimate based on go mod graph.
+  * Check other major versions of packages in estimate.
+  * Fix estimate when the repo is not the root of the module.
+  * Show and indicate duplicate dependencies in estimate.
+  * Replace "package" with "module" in estimate output where appropriate.
+  * Only highlight unique repositories in estimate.
+
+  [ Maytham Alsudany ]
+  * Update Salsa CI configuration.
+
+  [ Taavi Väänänen ]
+  * Support Codeberg as a host.
+
+  [ Otto Kekäläinen ]
+  * Update test to be compatible with latest Glamour v0.8.0.
+    Closes: #1091273
+  * Simplify `git init` command as Git 2.28+ is now widely supported.
+  * Include cross-links in man pages.
+
+  [ Nicolas Peugnet ]
+  * Add -git_revision flag to estimate command to define the git revision of
+    the specified Go package to estimate.
+
+  [ Martina Ferrari ]
+  * Update dependencies to match versions in sid
+  * Fix `non-constant format string` errors
+
+ -- Martina Ferrari <tina@debian.org>  Sun, 23 Feb 2025 19:36:53 +0000
+
 dh-make-golang (0.7.0-1) unstable; urgency=medium
 
   * New upstream version 0.7.0
 
     [ Guillem Jover ]
     * Use new dh-sequence-golang instead of dh-golang and --with=golang
-  
+
     * Add mongodb to known hosts.
       This is required by the go.mongodb.org/mongo-driver modules.
-  
+
     * Generate a debian/.gitignore file.
       This helps ignoring artifacts that git should not track, and which it
       can safely clean.
-  
+
     * Reorder generated fields.
-  
+
       While stylistic, the rationale for these changes is as follows:
-  
+
       = debian/control
-  
+
       - Group Section and Priority together as these categorize the package,
         and place them after Source or Package fields, as this determines
         where in the archive these might end up.
@@ -28,26 +77,26 @@ dh-make-golang (0.7.0-1) unstable; urgency=medium
         dependencies, such as fakeroot or sudo.
       - Move the Testsuite after the Build-Depends, as this is part of the
         runnable metadata.
-  
+
       = debian/copyright
-  
+
       - Move the Source field after Format, as both line up, refer to an
         URL, and it's the first reference to the upstream project.
-  
+
     * Set a Section: TODO field for program packages.
       The golang section is for Go development packages, the fact that a
       program is written in Go is generally of no major relevance for the
       user, and instead a more suitable section relative to its actual
       functionality should be used, to help a proper categorization in the
       archive.
-  
+
     [ dependabot ]
     * Bump github.com/mattn/go-isatty from 0.0.13 to 0.0.14
-  
+
     [ Taavi Väänänen ]
     * make: download tarballs from sr.ht
       and add a test for the tarball URL generation.
-  
+
     [ Anthony Fok ]
     * Bump glamour requirement to get bluemonday v1.0.16
     * Fix empty tarball in case of "unsupported hoster".
@@ -80,10 +129,10 @@ dh-make-golang (0.7.0-1) unstable; urgency=medium
       This fixes dh-make-golang’s failure to determine dependencies
       since 2023-08-21 when Go 1.21 became the default in Debian.
       (Closes: #1050523)
-  
+
     [ Maytham Alsudany ]
     * Bump template Standards-Version to 4.6.2 in template.go
-  
+
     [ Reinhard Tartler ]
     * Tolerate "errornous" packages in go list
       Fixes: #204
