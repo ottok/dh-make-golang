@@ -1,2 +1,4 @@
 0001-Put-build-artifacts-in-debian-.build-upstream-to-avo.patch
 0002-Stop-modifying-upstream-.gitignore-file.patch
+0003-Use-DEP-14-branch-names-debian-latest-and-upstream-l.patch
+0004-Always-call-upstream-git-remote-upstreamvcs.patch
