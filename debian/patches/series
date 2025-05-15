@@ -2,3 +2,4 @@
 0002-Stop-modifying-upstream-.gitignore-file.patch
 0003-Use-DEP-14-branch-names-debian-latest-and-upstream-l.patch
 0004-Always-call-upstream-git-remote-upstreamvcs.patch
+0005-Extend-default-debian-gbp.conf-with-extra-security-c.patch
