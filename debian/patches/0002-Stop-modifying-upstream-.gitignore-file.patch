@@ -1,0 +1,50 @@
+From: =?utf-8?b?T3R0byBLZWvDpGzDpGluZW4=?= <otto@debian.org>
+Date: Thu, 21 Nov 2024 00:23:12 -0800
+Subject: Stop modifying upstream .gitignore file
+
+The fact that Debian builds produce extra files in the build directory
+is a separate concern and should not be managed by .gitignores in upstream
+directory. Anyways, the list is not going to be complete on most packages,
+and instead of extending the list, a better practice is to have proper
+`make clean` rules in the `debian/rules`, or to simply run `git clean -fdx`
+between builds. Additionally, everyone should be using `gbp pq` to update
+patches instead of legacy Quilt, so no more `.pc` directories should be
+generated.
+---
+ make.go | 23 -----------------------
+ 1 file changed, 23 deletions(-)
+
+diff --git a/make.go b/make.go
+index c7e7505..14f267f 100644
+--- a/make.go
++++ b/make.go
+@@ -510,29 +510,6 @@ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
+ 		return dir, fmt.Errorf("import-orig: %w", err)
+ 	}
+ 
+-	{
+-		f, err := os.OpenFile(filepath.Join(dir, ".gitignore"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+-		if err != nil {
+-			return dir, fmt.Errorf("open .gitignore: %w", err)
+-		}
+-		// Beginning newline in case the file already exists and lacks a newline
+-		// (not all editors enforce a newline at the end of the file):
+-		if _, err := f.Write([]byte("\n/.pc/\n/_build/\n")); err != nil {
+-			return dir, fmt.Errorf("write to .gitignore: %w", err)
+-		}
+-		if err := f.Close(); err != nil {
+-			return dir, fmt.Errorf("close .gitignore: %w", err)
+-		}
+-	}
+-
+-	if err := runGitCommandIn(dir, "add", ".gitignore"); err != nil {
+-		return dir, fmt.Errorf("git add .gitignore: %w", err)
+-	}
+-
+-	if err := runGitCommandIn(dir, "commit", "-m", "Ignore _build and quilt .pc dirs via .gitignore"); err != nil {
+-		return dir, fmt.Errorf("git commit (.gitignore): %w", err)
+-	}
+-
+ 	return dir, nil
+ }
+ 
