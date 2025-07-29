@@ -15,10 +15,10 @@ generated.
  1 file changed, 23 deletions(-)
 
 diff --git a/make.go b/make.go
-index c7e7505..14f267f 100644
+index d72eafe..09bf151 100644
 --- a/make.go
 +++ b/make.go
-@@ -510,29 +510,6 @@ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
+@@ -511,29 +511,6 @@ func createGitRepository(debsrc, gopkg, orig string, u *upstream,
  		return dir, fmt.Errorf("import-orig: %w", err)
  	}
  

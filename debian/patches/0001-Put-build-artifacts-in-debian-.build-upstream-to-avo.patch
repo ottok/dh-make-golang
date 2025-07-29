@@ -12,7 +12,7 @@ subdirectory along with all other Debian build artifacts.
  1 file changed, 6 insertions(+), 1 deletion(-)
 
 diff --git a/template.go b/template.go
-index 7520f6f..78c2ba9 100644
+index c589db4..593c4d5 100644
 --- a/template.go
 +++ b/template.go
 @@ -86,6 +86,7 @@ func writeDebianGitIgnore(dir, debLib, debProg string, pkgType packageType) erro
@@ -23,7 +23,7 @@ index 7520f6f..78c2ba9 100644
  	fmt.Fprintf(f, "/debhelper-build-stamp\n")
  	fmt.Fprintf(f, "/files\n")
  
-@@ -299,7 +300,11 @@ func writeDebianRules(dir string, pkgType packageType) error {
+@@ -298,7 +299,11 @@ func writeDebianRules(dir string, pkgType packageType) error {
  	fmt.Fprintf(f, "#!/usr/bin/make -f\n")
  	fmt.Fprintf(f, "\n")
  	fmt.Fprintf(f, "%%:\n")

@@ -13,10 +13,10 @@ Contents is in line with the template used by `dh-make` version 2.202503.
  1 file changed, 36 insertions(+), 2 deletions(-)
 
 diff --git a/template.go b/template.go
-index 0e356c5..4e0d356 100644
+index 3c071c2..ccaca8e 100644
 --- a/template.go
 +++ b/template.go
-@@ -347,8 +347,42 @@ func writeDebianGbpConf(dir string, dep14, pristineTar bool) error {
+@@ -346,8 +346,42 @@ func writeDebianGbpConf(dir string, dep14, pristineTar bool) error {
  		fmt.Fprintf(f, "dist = DEP14\n")
  	}
  	if pristineTar {
