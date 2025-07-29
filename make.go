@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -386,7 +387,7 @@ func makeUpstreamSourceTarball(repo, revision string, forcePrerelease bool) (*up
 
 	log.Printf("Determining upstream version number\n")
 
-	u.version, err = pkgVersionFromGit(repoDir, &u, forcePrerelease)
+	u.version, err = pkgVersionFromGit(repoDir, &u, revision, forcePrerelease)
 	if err != nil {
 		return nil, fmt.Errorf("get package version from Git: %w", err)
 	}
@@ -575,10 +576,12 @@ func shortHostName(gopkg string, allowUnknownHoster bool) (host string, err erro
 		"code.google.com":      "googlecode",
 		"codeberg.org":         "codeberg",
 		"filippo.io":           "filippo",
+		"fortio.org":           "fortio",
 		"fyne.io":              "fyne",
 		"git.sr.ht":            "sourcehut",
 		"github.com":           "github",
 		"gitlab.com":           "gitlab",
+		"go.bug.st":            "bugst",
 		"go.cypherpunks.ru":    "cypherpunks",
 		"go.mongodb.org":       "mongodb",
 		"go.opentelemetry.io":  "opentelemetry",
@@ -689,9 +692,11 @@ func writeITP(gopkg, debsrc, debversion string) (string, error) {
 		description = "TODO"
 	}
 
-	fmt.Fprintf(f, "From: %q <%s>\n", getDebianName(), getDebianEmail())
+	subject := mime.QEncoding.Encode("utf-8", fmt.Sprintf("ITP: %s -- %s", debsrc, description))
+
+	fmt.Fprintf(f, "From: %q <%s>\n", mime.QEncoding.Encode("utf-8", getDebianName()), getDebianEmail())
 	fmt.Fprintf(f, "To: submit@bugs.debian.org\n")
-	fmt.Fprintf(f, "Subject: ITP: %s -- %s\n", debsrc, description)
+	fmt.Fprintf(f, "Subject: %s\n", subject)
 	fmt.Fprintf(f, "Content-Type: text/plain; charset=utf-8\n")
 	fmt.Fprintf(f, "Content-Transfer-Encoding: 8bit\n")
 	fmt.Fprintf(f, "X-Debbugs-CC: debian-devel@lists.debian.org, debian-go@lists.debian.org\n")
@@ -927,7 +932,7 @@ func execMake(args []string, usage func()) {
 
 	var (
 		eg             errgroup.Group
-		golangBinaries map[string]string // map[goImportPath]debianBinaryPackage
+		golangBinaries map[string]debianPackage // map[goImportPath]debianPackage
 	)
 
 	// TODO: also check whether there already is a git repository on salsa.
@@ -960,9 +965,9 @@ func execMake(args []string, usage func()) {
 		log.Printf("Could not check for existing Go packages in Debian: %v", err)
 	}
 
-	if debbin, ok := golangBinaries[gopkg]; ok {
+	if debpkg, ok := golangBinaries[gopkg]; ok {
 		log.Printf("WARNING: A package called %q is already in Debian! See https://tracker.debian.org/pkg/%s\n",
-			debbin, debbin)
+			debpkg.binary, debpkg.source)
 	}
 
 	orig := fmt.Sprintf("%s_%s.orig.tar.%s", debsrc, u.version, u.compression)
@@ -990,12 +995,12 @@ func execMake(args []string, usage func()) {
 			debdependencies = append(debdependencies, debianNameFromGopkg(dep, typeLibrary, "", allowUnknownHoster)+"-dev")
 			continue
 		}
-		bin, ok := golangBinaries[dep]
+		pkg, ok := golangBinaries[dep]
 		if !ok {
 			log.Printf("Build-Dependency %q is not yet available in Debian, or has not yet been converted to use XS-Go-Import-Path in debian/control", dep)
 			continue
 		}
-		debdependencies = append(debdependencies, bin)
+		debdependencies = append(debdependencies, pkg.binary)
 	}
 
 	if err := writeTemplates(dir, gopkg, debsrc, debLib, debProg, debversion,
