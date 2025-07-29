@@ -1,3 +1,17 @@
+dh-make-golang (0.8+git20250727.a6fe7fa-1~otto) UNRELEASED; urgency=medium
+
+  * New upstream version 0.8+git20250727.a6fe7fa
+  * WIP: Use branch 'debian/latest'
+  * WIP: Use latest gitlab-ci.yml with Salsa CI support
+  * WIP: Demonstrate that repo configured with gitlab-ci.yml can run salsa-ci.yml
+  * WIP https://github.com/Debian/dh-make-golang/pull/248
+  * WIP https://github.com/Debian/dh-make-golang/pull/247
+  * WIP https://github.com/Debian/dh-make-golang/pull/246
+  * WIP https://github.com/Debian/dh-make-golang/pull/279
+  * WIP: Use latest git HEAD and not just released version
+
+ -- Otto Kekäläinen <otto@debian.org>  Tue, 29 Jul 2025 12:36:07 -0700
+
 dh-make-golang (0.8.0-1) unstable; urgency=medium
 
   * New upstream release 0.8.0.
