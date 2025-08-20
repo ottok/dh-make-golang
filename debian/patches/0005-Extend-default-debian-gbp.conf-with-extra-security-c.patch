@@ -9,14 +9,14 @@ flow to all packages via good defaults.
 
 Contents is in line with the template used by `dh-make` version 2.202503.
 ---
- template.go | 38 ++++++++++++++++++++++++++++++++++++--
- 1 file changed, 36 insertions(+), 2 deletions(-)
+ template.go | 37 +++++++++++++++++++++++++++++++++++--
+ 1 file changed, 35 insertions(+), 2 deletions(-)
 
 diff --git a/template.go b/template.go
-index 3c071c2..ccaca8e 100644
+index ef8721b..c489cde 100644
 --- a/template.go
 +++ b/template.go
-@@ -346,8 +346,42 @@ func writeDebianGbpConf(dir string, dep14, pristineTar bool) error {
+@@ -346,8 +346,41 @@ func writeDebianGbpConf(dir string, dep14, pristineTar bool) error {
  		fmt.Fprintf(f, "dist = DEP14\n")
  	}
  	if pristineTar {
@@ -25,7 +25,6 @@ index 3c071c2..ccaca8e 100644
 +		fmt.Fprintf(f, `
 +# Enable pristine-tar to exactly reproduce orig tarballs
 +pristine-tar = True
-+
 +`)
 +	}
 +

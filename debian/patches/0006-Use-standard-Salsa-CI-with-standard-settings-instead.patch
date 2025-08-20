@@ -14,10 +14,10 @@ as the Salsa CI pipeline jobs have made the custom Go team CI obsolete.
  1 file changed, 14 insertions(+), 45 deletions(-)
 
 diff --git a/template.go b/template.go
-index ccaca8e..8216679 100644
+index 3c071c2..ef8721b 100644
 --- a/template.go
 +++ b/template.go
-@@ -499,53 +499,22 @@ func writeDebianUpstreamMetadata(dir, gopkg string) error {
+@@ -465,53 +465,22 @@ func writeDebianUpstreamMetadata(dir, gopkg string) error {
  }
  
  func writeDebianGitLabCI(dir string) error {
