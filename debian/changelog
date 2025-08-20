@@ -1,4 +1,4 @@
-dh-make-golang (0.8+git20250727.a6fe7fa-1~otto) UNRELEASED; urgency=medium
+dh-make-golang (0.8+git20250820.a6fe7fa-1~otto) UNRELEASED; urgency=medium
 
   * New upstream version 0.8+git20250727.a6fe7fa
   * WIP: Use branch 'debian/latest'
@@ -8,6 +8,7 @@ dh-make-golang (0.8+git20250727.a6fe7fa-1~otto) UNRELEASED; urgency=medium
   * WIP https://github.com/Debian/dh-make-golang/pull/247
   * WIP https://github.com/Debian/dh-make-golang/pull/246
   * WIP https://github.com/Debian/dh-make-golang/pull/279
+  * WIP https://github.com/Debian/dh-make-golang/pull/290
   * WIP: Use latest git HEAD and not just released version
 
  -- Otto Kekäläinen <otto@debian.org>  Tue, 29 Jul 2025 12:36:07 -0700
