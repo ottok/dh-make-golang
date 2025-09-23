@@ -6,3 +6,4 @@
 0005-Extend-default-debian-gbp.conf-with-extra-security-c.patch
 0007-Add-dpkg-build-api-1-to-the-default-build-deps.patch
 0008-estimate-fix-occasional-infinite-recursion.patch
+0009-estimate-fix-for-modules-that-don-t-have-a-root-pack.patch

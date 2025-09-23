@@ -1,0 +1,28 @@
+From: Nicolas Peugnet <nicolas@club1.fr>
+Date: Tue, 23 Sep 2025 11:27:47 +0200
+Subject: estimate: fix for modules that don't have a root package
+
+Some modules don't have any .go files in their root directory (e.g.
+github.com/autobrr/qui), which means they have no root package. This
+led to the error "no required module provides package foo" when trying
+to list the direct dependencies of the estimated module.
+
+To fix this, we now make sure to use "go list" in module mode using
+the "-m" option when looking for the module directory in the GOPATH.
+---
+ estimate.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/estimate.go b/estimate.go
+index 5182960..240fe2e 100644
+--- a/estimate.go
++++ b/estimate.go
+@@ -88,7 +88,7 @@ func get(gopath, repodir, repo, rev string) error {
+ // getModuleDir returns the path of the directory containing a module for the
+ // given GOPATH and repository dir values.
+ func getModuleDir(gopath, repodir, module string) (string, error) {
+-	cmd := exec.Command("go", "list", "-f", "{{.Dir}}", module)
++	cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", module)
+ 	cmd.Dir = repodir
+ 	cmd.Stderr = os.Stderr
+ 	cmd.Env = append([]string{
