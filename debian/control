@@ -7,7 +7,6 @@ Uploaders: Michael Stapelberg <stapelberg@debian.org>,
            Anthony Fok <foka@debian.org>,
            Aloïs Micard <creekorful@debian.org>,
            Martina Ferrari <tina@debian.org>,
-Rules-Requires-Root: no
 Build-Depends: debhelper-compat (= 13),
                dh-sequence-golang,
                git,
