@@ -2,25 +2,27 @@ Source: dh-make-golang
 Section: golang
 Priority: optional
 Maintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>
-Uploaders: Michael Stapelberg <stapelberg@debian.org>,
-           Dr. Tobias Quathamer <toddy@debian.org>,
-           Anthony Fok <foka@debian.org>,
-           Aloïs Micard <creekorful@debian.org>,
-           Martina Ferrari <tina@debian.org>,
-           Otto Kekäläinen <otto@debian.org>,
-Build-Depends: debhelper-compat (= 13),
-               dh-sequence-golang,
-               git,
-               golang-any (>= 2:1.21~),
-               golang-github-charmbracelet-glamour-dev,
-               golang-github-google-go-github-dev (>= 60),
-               golang-github-gregjones-httpcache-dev,
-               golang-github-mattn-go-isatty-dev,
-               golang-golang-x-net-dev (>= 1:0.21.0),
-               golang-golang-x-sync-dev,
-               golang-golang-x-tools-dev (>= 1:0.13.0),
-               golang-pault-go-debian-dev,
-               pandoc,
+Uploaders:
+ Michael Stapelberg <stapelberg@debian.org>,
+ Dr. Tobias Quathamer <toddy@debian.org>,
+ Anthony Fok <foka@debian.org>,
+ Aloïs Micard <creekorful@debian.org>,
+ Martina Ferrari <tina@debian.org>,
+ Otto Kekäläinen <otto@debian.org>,
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-sequence-golang,
+ git,
+ golang-any (>= 2:1.21~),
+ golang-github-charmbracelet-glamour-dev,
+ golang-github-google-go-github-dev (>= 60),
+ golang-github-gregjones-httpcache-dev,
+ golang-github-mattn-go-isatty-dev,
+ golang-golang-x-net-dev (>= 1:0.21.0),
+ golang-golang-x-sync-dev,
+ golang-golang-x-tools-dev (>= 1:0.13.0),
+ golang-pault-go-debian-dev,
+ pandoc,
 Testsuite: autopkgtest-pkg-go
 Standards-Version: 4.7.0
 Vcs-Browser: https://salsa.debian.org/go-team/packages/dh-make-golang
@@ -30,15 +32,18 @@ XS-Go-Import-Path: github.com/Debian/dh-make-golang
 
 Package: dh-make-golang
 Architecture: any
-Depends: git,
-         git-buildpackage,
-         golang-any,
-         pristine-tar,
-         ${misc:Depends},
-         ${shlibs:Depends},
-Recommends: default-mta | mail-transport-agent,
-            golang-golang-x-tools,
-Static-Built-Using: ${misc:Static-Built-Using}
+Depends:
+ git,
+ git-buildpackage,
+ golang-any,
+ pristine-tar,
+ ${misc:Depends},
+ ${shlibs:Depends},
+Recommends:
+ default-mta | mail-transport-agent,
+ golang-golang-x-tools,
+Static-Built-Using:
+ ${misc:Static-Built-Using},
 Description: tool that converts Go packages into Debian package source
  dh-make-golang is a tool to automatically create Debian packaging for Go
  packages. Its goal is to automate away as much of the work as possible when
