@@ -1,3 +1,36 @@
+dh-make-golang (0.8.1-1) unstable; urgency=medium
+
+  * New upstream release 0.8.1:
+    - Fix progress and log output of estimate command
+    - estimate: ignore some modules based on a blocklist
+    - estimate: do not print children of mismatched major mods
+    - estimate: print Debian package's name & URL for approximate matches
+    - Add go.bug.st to known hosts
+    - metadata: trim .git suffix when searching github URL for gopkg
+    - Add fortio.org to known hosts
+    - estimate: show packages in NEW, but with a light blue color
+    - estimate: add a link to FTP masters website for NEW packages
+    - Fix estimate listing indirect dependencies as direct
+    - estimate: fix occasional infinite recursion (Closes: #292)
+    - estimate: fix for modules that don't have a root package
+    - estimate: fix for modules that don't have a go.mod file
+    - make: MIME-encode sender name when necessary
+    - mail: MIME-encode subject as well
+    - dh-make-golang make: directly use the user preferred tag specified in
+      "-git_revision" option
+    - Add zgo.at -> zgoat short host name
+    - Ignore `/vN` major version suffix when populating `Upstream-Name`
+  * Stop using `Rules-Requires-Root: no`, which is the default in Trixie
+  * Switch to standard Salsa CI definition
+  * Remove obsolete 'Rules-Requires-Root: no'
+  * Put build artifacts in debian/_build to avoid polluting upstream paths
+  * Add myself as uploader
+  * Apply `debputy reformat --style black`
+  * Release 0.8.1
+  * Document packaging git repository conventions in gbp.conf
+
+ -- Otto Kekäläinen <otto@debian.org>  Wed, 15 Oct 2025 22:26:59 -0700
+
 dh-make-golang (0.8.0-1) unstable; urgency=medium
 
   * New upstream release 0.8.0.
