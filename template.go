@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -195,7 +196,6 @@ func writeDebianControl(dir, gopkg, debsrc, debLib, debProg string, pkgType pack
 	fmt.Fprintf(f, "Priority: optional\n")
 	fmt.Fprintf(f, "Maintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>\n")
 	fprintfControlField(f, "Uploaders", []string{getDebianName() + " <" + getDebianEmail() + ">"})
-	fmt.Fprintf(f, "Rules-Requires-Root: no\n")
 
 	builddeps := append([]string{
 		"debhelper-compat (= 13)",
@@ -259,9 +259,19 @@ func writeDebianCopyright(dir, gopkg string, vendorDirs []string, hasGodeps bool
 		linebreak = "\n"
 	}
 
+	// Determine a reasonable default for the upstream project's name.  If the
+	// module is named something like example.com/foo/bar, then use the final
+	// component "bar" as the project name.  But if the module name has a major
+	// version suffix, such as example.com/foo/bar/v2, then strip off the suffix
+	// before taking the final component.
+	upstreamName := filepath.Base(gopkg)
+	if regexp.MustCompile(`^v\d+$`).MatchString(upstreamName) {
+		upstreamName = filepath.Base(filepath.Dir(gopkg))
+	}
+
 	fmt.Fprintf(f, "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/\n")
 	fmt.Fprintf(f, "Source: %s\n", getHomepageForGopkg(gopkg))
-	fmt.Fprintf(f, "Upstream-Name: %s\n", filepath.Base(gopkg))
+	fmt.Fprintf(f, "Upstream-Name: %s\n", upstreamName)
 	fmt.Fprintf(f, "Upstream-Contact: TODO\n")
 	if len(vendorDirs) > 0 || hasGodeps {
 		fmt.Fprintf(f, "Files-Excluded:\n")
