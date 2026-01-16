@@ -7,8 +7,14 @@ Copyright: 2015-2019 Michael Stapelberg, Google Inc. and contributors
 License: BSD-3-clause
 
 Files: debian/*
-Copyright: 2015-2017 Michael Stapelberg <stapelberg@debian.org>
-           2016-2019 Dr. Tobias Quathamer <toddy@debian.org>
+Copyright:
+ 2015-2017 Michael Stapelberg <stapelberg@debian.org>
+ 2016-2019 Dr. Tobias Quathamer <toddy@debian.org>
+ 2017-2018 Alexandre Viau <aviau@debian.org>
+ 2018-2024 Anthony Fok <foka@debian.org>
+ 2019 Guillem Jover <gjover@sipwise.com>
+ 2021 Aloïs Micard <creekorful@debian.org>
+ 2025-2026 Otto Kekäläinen <otto@debian.org>
 License: BSD-3-clause
 Comment: Debian packaging is licensed under the same terms as upstream
 
