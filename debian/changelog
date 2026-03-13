@@ -1,3 +1,30 @@
+dh-make-golang (0.8.3-1) unstable; urgency=medium
+
+  * New upstream release 0.8.3:
+    - Extend default debian/gbp.conf with extra security config tips
+    - estimate: Change new package URL to the DFSG team review site
+    - estimate: Include package name and version in "in NEW" lines
+    - estimate: Don't print color/hyperlink escape codes on non-terminals
+    - estimate: Move module output formatting to helper functions
+    - estimate: Simplify check (for readability)
+    - Add backwards compatibility with old `gitlab-ci.yml` file name
+    - Start using CI file name `salsa-ci.yml`
+    - Use standard Salsa CI with standard settings instead of custom Go team CI
+    - Suppress git hint about default branch name in test
+    - Add smoke test for `check-depends --help` flag
+    - Replace repeated fmt.Fprintf calls with raw string literals
+    - Implement `check-depends --help`
+    - Use strings.Builder to incrementally construct a string
+    - Use strings.Cut and friends for string processing
+    - Use strings.SplitSeq, not strings.Split, when iterating
+    - estimate: Fix parameter name
+    - estimate: Fix URL in error message
+    - Fix missing HTTP body Close calls
+    - Run "go mod tidy"
+  * Update d/watch to use uscan v5 format
+
+ -- Otto Kekäläinen <otto@debian.org>  Fri, 13 Mar 2026 13:13:13 +0000
+
 dh-make-golang (0.8.2-1) unstable; urgency=medium
 
   * New upstream release 0.8.2:
