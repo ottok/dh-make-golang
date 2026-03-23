@@ -1,3 +1,9 @@
+dh-make-golang (0.8.3-1~bpo13+1) trixie-backports; urgency=medium
+
+  * Backport to trixie
+
+ -- Otto Kekäläinen <otto@debian.org>  Mon, 23 Mar 2026 06:06:06 +0000
+
 dh-make-golang (0.8.3-1) unstable; urgency=medium
 
   * New upstream release 0.8.3:
