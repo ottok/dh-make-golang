@@ -27,6 +27,7 @@ func getGolangBinaries() (map[string]debianPackage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("getting %q: %w", golangBinariesURL, err)
 	}
+	defer resp.Body.Close()
 	if got, want := resp.StatusCode, http.StatusOK; got != want {
 		return nil, fmt.Errorf("unexpected HTTP status code: got %d, want %d", got, want)
 	}
@@ -42,7 +43,7 @@ func getGolangBinaries() (map[string]debianPackage, error) {
 		if !strings.HasSuffix(pkg.Binary, "-dev") {
 			continue // skip -dbgsym packages etc.
 		}
-		for _, importPath := range strings.Split(pkg.XSGoImportPath, ",") {
+		for importPath := range strings.SplitSeq(pkg.XSGoImportPath, ",") {
 			// XS-Go-Import-Path can be comma-separated and contain spaces.
 			golangBinaries[strings.TrimSpace(importPath)] = debianPackage{
 				binary: pkg.Binary,
@@ -57,9 +58,10 @@ func execSearch(args []string) {
 	fs := flag.NewFlagSet("search", flag.ExitOnError)
 
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s search <pattern>\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Uses Go's default regexp syntax (https://golang.org/pkg/regexp/syntax/)\n")
-		fmt.Fprintf(os.Stderr, "Example: %s search 'debi.*'\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, `Usage: %s search <pattern>
+Uses Go's default regexp syntax (https://golang.org/pkg/regexp/syntax/)
+Example: %s search 'debi.*'
+`, os.Args[0], os.Args[0])
 	}
 
 	err := fs.Parse(args)
