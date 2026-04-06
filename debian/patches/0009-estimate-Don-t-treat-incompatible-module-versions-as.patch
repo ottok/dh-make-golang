@@ -1,0 +1,48 @@
+From: Richard Hansen <rhansen@rhansen.org>
+Date: Thu, 23 Oct 2025 02:24:09 -0400
+Subject: estimate: Don't treat incompatible module versions as compatible
+
+Go requires a different module path for a module with a different
+major version, so any attempt to build against a module with a
+different major version should fail.  Don't pretend that a different
+major version could be compatible.
+
+This changes the current behavior:
+
+    2026/03/08 16:45:15 See golang-example-bar-v3 for inspiration (it packages example.com/bar/v3) when packaging example.com/bar/v4
+    ... potentially many lines later ...
+    2026/03/08 16:45:15 Bringing example.com/foo to Debian requires packaging the following Go modules:
+    example.com/foo
+      example.com/asdf
+
+to something less misleading:
+
+    2026/03/08 16:45:15 See golang-example-bar-v3 for inspiration (it packages example.com/bar/v3) when packaging example.com/bar/v4
+    ... potentially many lines later ...
+    2026/03/08 16:45:15 Bringing example.com/foo to Debian requires packaging the following Go modules:
+    example.com/foo
+      example.com/bar/v4
+        example.com/baz
+      example.com/asdf
+---
+ estimate.go | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/estimate.go b/estimate.go
+index 22c7014..9eb070d 100644
+--- a/estimate.go
++++ b/estimate.go
+@@ -362,13 +362,8 @@ func estimate(importpath, revision string) error {
+ 			// Check for potential other major versions already in Debian.
+ 			if p, pkg := bestOtherMaj(packagedByModPathPrefix, mod); p != "" {
+ 				// Log info to indicate that it is an approximate match
+-				// but consider that it is packaged and skip the children.
+ 				log.Printf("See %v for inspiration (it packages module %v) when packaging %v",
+ 					trackerLink(pkg.source), p, mod)
+-				if version, ok := sourcesInNew[pkg.source]; ok {
+-					output(newPackageLine(mod, pkg.source, version))
+-				}
+-				return
+ 			}
+ 			// Ignore modules from the blocklist.
+ 			if reason, found := moduleBlocklist[mod]; found {

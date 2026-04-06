@@ -1,0 +1,93 @@
+From: Richard Hansen <rhansen@rhansen.org>
+Date: Fri, 24 Oct 2025 22:41:40 -0400
+Subject: estimate: Don't search for packaged repo root
+
+Despite its name, XS-Go-Import-Path names a module path, not a package
+import path.  From Go's perspective, two modules with different module
+paths are completely unrelated, even if one module path is a prefix of
+another.  It is always incorrect to assume that a Debian package
+providing example.com/foo can satisfy a requirement for
+example.com/foo/v2 and vice-versa.
+
+For non-modules (which by definition don't have a module path), the
+`go` binary and the GOPROXY service (proxy.golang.org) use the
+repository root as the synthesized module path, so that is what
+XS-Go-Import-Path also contains.  Thus, common prefixes don't apply to
+non-modules, either.
+
+Logging a hint that an already published Debian package provides a
+related module is already handled by the `findOtherVersion` call.
+---
+ estimate.go | 32 +-------------------------------
+ 1 file changed, 1 insertion(+), 31 deletions(-)
+
+diff --git a/estimate.go b/estimate.go
+index f90c11a..15dfe44 100644
+--- a/estimate.go
++++ b/estimate.go
+@@ -16,7 +16,6 @@ import (
+ 	"strings"
+ 
+ 	"github.com/mattn/go-isatty"
+-	"golang.org/x/tools/go/vcs"
+ )
+ 
+ const (
+@@ -296,7 +295,6 @@ func estimate(importpath, revision string) error {
+ 	// Analyse the dependency graph
+ 	var lines []string
+ 	seen := make(map[string]bool)
+-	rrseen := make(map[string]bool)
+ 	needed := make(map[string]int)
+ 	var visit func(n *Node, indent int)
+ 	visit = func(n *Node, indent int) {
+@@ -325,14 +323,6 @@ func estimate(importpath, revision string) error {
+ 				}
+ 				return // already packaged in Debian
+ 			}
+-			var repoRoot string
+-			rr, err := vcs.RepoRootForImportPath(mod, false)
+-			if err != nil {
+-				log.Printf("Could not determine repo path for import path %q: %v\n", mod, err)
+-				repoRoot = mod
+-			} else {
+-				repoRoot = rr.Root
+-			}
+ 			// Check for potential other major versions already in Debian.
+ 			v, pkg := findOtherVersion(golangBinaries, mod)
+ 			if v != 0 {
+@@ -348,33 +338,13 @@ func estimate(importpath, revision string) error {
+ 				}
+ 				return
+ 			}
+-			// When multiple modules are developped in the same repo,
+-			// the repo root is often used as the import path metadata
+-			// in Debian, so we do a last try with that.
+-			if pkg, ok := golangBinaries[repoRoot]; ok {
+-				// Log info to indicate that it is an approximate match
+-				// but consider that it is packaged and skip the children.
+-				log.Printf("%s is packaged as %s in Debian (%s)", mod, repoRoot, trackerLink(pkg.source))
+-				if version, ok := sourcesInNew[pkg.source]; ok {
+-					output(newPackageLine(mod, pkg.source, version))
+-				}
+-				return
+-			}
+ 			// Ignore modules from the blocklist.
+ 			if reason, found := moduleBlocklist[mod]; found {
+ 				log.Printf("Ignoring module %s: %s", mod, reason)
+ 				return
+ 			}
+-			if rrseen[repoRoot] {
+-				output(hiblackf("%v", mod))
+-			} else if strings.HasPrefix(mod, repoRoot) && len(mod) > len(repoRoot) {
+-				suffix := mod[len(repoRoot):]
+-				output(repoRoot + hiblackf("%v", suffix))
+-			} else {
+-				output(mod)
+-			}
+-			rrseen[repoRoot] = true
+ 			needed[mod] = 1
++			output(mod)
+ 		}
+ 		for _, n := range n.children {
+ 			visit(n, indent+1)

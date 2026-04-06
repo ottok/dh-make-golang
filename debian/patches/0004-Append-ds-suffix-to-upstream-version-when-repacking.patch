@@ -1,0 +1,23 @@
+From: aviralgarg05 <gargaviral99@gmail.com>
+Date: Sun, 18 Jan 2026 00:11:27 +0530
+Subject: Append +ds suffix to upstream version when repacking
+
+---
+ make.go | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/make.go b/make.go
+index d3578b9..38225cb 100644
+--- a/make.go
++++ b/make.go
+@@ -935,6 +935,10 @@ func execMake(args []string, usage func()) {
+ 		log.Fatalf("Could not create a tarball of the upstream source: %v\n", err)
+ 	}
+ 
++	if len(u.vendorDirs) > 0 || u.hasGodeps {
++		u.version += "+ds"
++	}
++
+ 	if pkgType == typeGuess {
+ 		if u.firstMain != "" {
+ 			log.Printf("Assuming you are packaging a program (because %q defines a main package), use -type to override\n", u.firstMain)

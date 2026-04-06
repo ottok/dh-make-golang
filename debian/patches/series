@@ -1,0 +1,12 @@
+0001-Switch-to-using-uscan-version-5-in-the-debian-watch-.patch
+0002-Use-DEP-14-branch-names-debian-latest-and-upstream-l.patch
+0003-Always-call-upstream-git-remote-upstreamvcs.patch
+0004-Append-ds-suffix-to-upstream-version-when-repacking.patch
+0005-estimate-Delete-unnecessary-removeVendor.patch
+0006-estimate-Don-t-search-for-packaged-repo-root.patch
+0007-estimate-Redo-searches-for-different-major-version.patch
+0008-estimate-Improve-log-message-regarding-related-Debia.patch
+0009-estimate-Don-t-treat-incompatible-module-versions-as.patch
+0010-estimate-Convert-see-x-for-inspiration-log-message-t.patch
+0011-estimate-Inline-the-newPackageLine-function.patch
+0012-estimate-Only-color-the-in-NEW-as-hint.patch

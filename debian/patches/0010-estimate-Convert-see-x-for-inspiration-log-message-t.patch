@@ -1,0 +1,76 @@
+From: Richard Hansen <rhansen@rhansen.org>
+Date: Mon, 23 Mar 2026 19:44:59 -0400
+Subject: estimate: Convert "see x for inspiration" log message to output hint
+
+This makes the suggestion easier to see.  Before:
+
+    2026/03/08 16:45:15 See golang-example-bar-v3 for inspiration (it packages example.com/bar/v3) when packaging example.com/bar/v4
+    ... potentially many lines later ...
+    2026/03/08 16:45:15 Bringing example.com/foo to Debian requires packaging the following Go modules:
+    example.com/foo
+      example.com/bar/v4
+        example.com/baz
+      example.com/asdf
+
+After:
+
+    ... potentially many lines later ...
+    2026/03/08 16:45:15 Bringing example.com/foo to Debian requires packaging the following Go modules:
+    example.com/foo
+      example.com/bar/v4 (see golang-example-bar-v3 for inspiration)
+        example.com/baz
+      example.com/asdf
+---
+ estimate.go | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/estimate.go b/estimate.go
+index 9eb070d..4f10dd1 100644
+--- a/estimate.go
++++ b/estimate.go
+@@ -34,6 +34,7 @@ var (
+ 	cyanf     = fmt.Sprintf
+ 	hiblackf  = fmt.Sprintf
+ 	hyperlink = func(url, txt string) string { return txt }
++	yellowf   = fmt.Sprintf
+ )
+ 
+ func getSourcesInNew() (map[string]string, error) {
+@@ -353,6 +354,7 @@ func estimate(importpath, revision string) error {
+ 			if mod == "go" || mod == "toolchain" {
+ 				return
+ 			}
++			hint := ""
+ 			if pkg, ok := golangBinaries[mod]; ok {
+ 				if version, ok := sourcesInNew[pkg.source]; ok {
+ 					output(newPackageLine(mod, pkg.source, version))
+@@ -361,9 +363,7 @@ func estimate(importpath, revision string) error {
+ 			}
+ 			// Check for potential other major versions already in Debian.
+ 			if p, pkg := bestOtherMaj(packagedByModPathPrefix, mod); p != "" {
+-				// Log info to indicate that it is an approximate match
+-				log.Printf("See %v for inspiration (it packages module %v) when packaging %v",
+-					trackerLink(pkg.source), p, mod)
++				hint += " " + yellowf("(see %v for inspiration)", trackerLink(pkg.source))
+ 			}
+ 			// Ignore modules from the blocklist.
+ 			if reason, found := moduleBlocklist[mod]; found {
+@@ -371,7 +371,7 @@ func estimate(importpath, revision string) error {
+ 				return
+ 			}
+ 			needed[mod] = 1
+-			output(mod)
++			output(mod + hint)
+ 		}
+ 		for _, n := range n.children {
+ 			visit(n, indent+1)
+@@ -448,6 +448,9 @@ func execEstimate(args []string) {
+ 		hyperlink = func(url, txt string) string {
+ 			return fmt.Sprintf("\033]8;;%s\033\\%s\033]8;;\033\\", url, txt)
+ 		}
++		yellowf = func(format string, args ...any) string {
++			return "\033[33m" + fmt.Sprintf(format, args...) + "\033[0m"
++		}
+ 	}
+ 
+ 	if fs.NArg() != 1 {

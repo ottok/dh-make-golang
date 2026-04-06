@@ -1,0 +1,107 @@
+From: =?utf-8?b?T3R0byBLZWvDpGzDpGluZW4=?= <otto@debian.org>
+Date: Thu, 19 Feb 2026 08:26:00 +0000
+Subject: Switch to using uscan version 5 in the `debian/watch` file
+
+When `dh-make-golang` generates source packages for new packages, it
+should use the new uscan v5 by default. Update the template syntax to
+use v5 and simplify a bit to the extent new features in v5 allows.
+
+While it would be possible to not generate any `debian/watch` file at
+all, as in devscripts since 2.25.19 uscan automatically discovers GitHub
+upstream tarballs when `debian/upstream/metadata` contains the `Archive:
+GitHub` and `Repository` fields, there is often cases where maintainers
+need to tweak the uscan settings and thus having an explicit watch file
+feels overall as a more uniform and handier default setup for now.
+---
+ template.go | 55 ++++++++++++++++++++++++-------------------------------
+ version.go  |  3 ++-
+ 2 files changed, 26 insertions(+), 32 deletions(-)
+
+diff --git a/template.go b/template.go
+index 8eb423e..8345029 100644
+--- a/template.go
++++ b/template.go
+@@ -414,45 +414,38 @@ func writeDebianWatch(dir, gopkg, debsrc string, hasRelease bool, repack bool) e
+ 	}
+ 	defer f.Close()
+ 
+-	filenamemanglePattern := `s%(?:.*?)?v?(\d[\d.]*)\.tar\.gz%@PACKAGE@-$1.tar.gz%`
+-	uversionmanglePattern := `s/(\d)[_\.\-\+]?(RC|rc|pre|dev|beta|alpha)[.]?(\d*)$/$1~$2$3/`
++	// This whole section uses the uscan v5 format
++	fmt.Fprint(f, "Version: 5\n")
+ 
++	// If upstream has releases, instruct uscan to download latest release.
++	// Otherwise use upstream git HEAD.
+ 	if hasRelease {
+-		log.Printf("Setting debian/watch to track release tarball")
+-		fmt.Fprint(f, "version=4\n")
+-		fmt.Fprint(f, `opts="filenamemangle=`+filenamemanglePattern+`,\`+"\n")
+-		fmt.Fprint(f, `      uversionmangle=`+uversionmanglePattern)
+-		if repack {
+-			fmt.Fprint(f, `,\`+"\n")
+-			fmt.Fprint(f, `      dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1`)
+-		}
+-		fmt.Fprint(f, `" \`+"\n")
+-		fmt.Fprintf(f, `  https://%s/%s/%s/tags .*/v?(\d\S*)\.tar\.gz debian`+"\n", host, owner, repo)
++		log.Printf("Setting debian/watch to fetch the GitHub release tarball")
++		fmt.Fprint(f, "Template: GitHub\n")
++		fmt.Fprintf(f, "Dist: https://github.com/%s/%s\n", owner, repo)
+ 	} else {
+ 		log.Printf("Setting debian/watch to track git HEAD")
+-		fmt.Fprint(f, "version=4\n")
+-		fmt.Fprint(f, `opts="mode=git, pgpmode=none`)
+-		if repack {
+-			fmt.Fprint(f, `,\`+"\n")
+-			fmt.Fprint(f, `      dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1`)
+-		}
+-		fmt.Fprint(f, `" \`+"\n")
+-		fmt.Fprintf(f, `  https://%s/%s/%s.git \`+"\n", host, owner, repo)
+-		fmt.Fprint(f, "  HEAD debian\n")
++		fmt.Fprint(f, "Mode: git\n")
++		fmt.Fprintf(f, "Source: https://%s/%s/%s.git\n", host, owner, repo)
++		fmt.Fprint(f, "Matching-Pattern: HEAD\n")
++		fmt.Fprint(f, "# Enable verifying git tags are signed if upstream uses them:\n")
++		fmt.Fprint(f, "#Pgp-Mode: gittag\n")
+ 
+ 		// Anticipate that upstream would eventually switch to tagged releases
+-		fmt.Fprint(f, "\n")
++		fmt.Fprint(f, "#\n")
+ 		fmt.Fprint(f, "# Use the following when upstream starts to tag releases:\n")
+ 		fmt.Fprint(f, "#\n")
+-		fmt.Fprint(f, "#version=4\n")
+-		fmt.Fprint(f, `#opts="filenamemangle=`+filenamemanglePattern+`,\`+"\n")
+-		fmt.Fprint(f, `#      uversionmangle=`+uversionmanglePattern)
+-		if repack {
+-			fmt.Fprint(f, `,\`+"\n")
+-			fmt.Fprint(f, `#      dversionmangle=s/\+ds\d*$//,repacksuffix=+ds1`)
+-		}
+-		fmt.Fprint(f, `" \`+"\n")
+-		fmt.Fprintf(f, `#  https://%s/%s/%s/tags .*/v?(\d\S*)\.tar\.gz debian`+"\n", host, owner, repo)
++		fmt.Fprint(f, "#Template: GitHub\n")
++		fmt.Fprintf(f, "#Dist: https://github.com/%s/%s\n", owner, repo)
++	}
++
++	// If upstream release was repacked, use suffix '+ds' to continue the Go
++	// team's historical convention despite uscan man page stating '+ds' as
++	// 'useless' option and preferring '+dfsg'.
++	if repack {
++		log.Printf("Setting debian/watch to repack with suffix +ds")
++		fmt.Fprint(f, "Repacksuffix: +ds\n")
++		fmt.Fprint(f, "Dversion-Mangle: auto\n")
+ 	}
+ 
+ 	return nil
+diff --git a/version.go b/version.go
+index 1527885..4a7d93e 100644
+--- a/version.go
++++ b/version.go
+@@ -24,7 +24,8 @@ var (
+ 
+ 	// uversionPrereleaseRegexp checks for upstream pre-release
+ 	// so that '-' can be replaced with '~' in pkgVersionFromGit.
+-	// To be kept in sync with the regexp portion of uversionmanglePattern in template.go
++	// To be kept in sync with the default regex in uscan:
++	// https://manpages.debian.org/unstable/devscripts/debian-watch.5.en.html#Uversion-Mangle:
+ 	uversionPrereleaseRegexp = regexp.MustCompile(`(\d)[_\.\-\+]?(RC|rc|pre|dev|beta|alpha)[.]?(\d*)$`)
+ )
+ 
