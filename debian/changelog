@@ -1,3 +1,10 @@
+dh-make-golang (0.8.3.2.g8b3e6b6-1) UNRELEASED; urgency=medium
+
+  * WIP: Use branch 'debian/latest' and 'upstream-git-head'
+  * New upstream version 0.8.3.2.g8b3e6b6
+
+ -- Otto Kekäläinen <otto@debian.org>  Mon, 06 Apr 2026 06:22:39 +0000
+
 dh-make-golang (0.8.3-1) unstable; urgency=medium
 
   * New upstream release 0.8.3:
