@@ -1,0 +1,28 @@
+From: =?utf-8?b?T3R0byBLZWvDpGzDpGluZW4=?= <otto@debian.org>
+Date: Mon, 6 Apr 2026 19:37:52 +0900
+Subject: Remove extra newlines from gpb.conf
+
+---
+ template.go | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/template.go b/template.go
+index 36c4ea5..53ca173 100644
+--- a/template.go
++++ b/template.go
+@@ -358,7 +358,6 @@ func writeDebianGbpConf(dir string, dep14, pristineTar bool) error {
+ 	}
+ 	if pristineTar {
+ 		fmt.Fprintf(f, `
+-
+ # Enable pristine-tar for git-buildpackage to exactly reproduce orig tarballs
+ pristine-tar = True
+ `)
+@@ -366,7 +365,6 @@ pristine-tar = True
+ 
+ 	// Additional text to the template which is useful for most Go packages
+ 	fmt.Fprint(f, `
+-
+ # Enable git-buildpackage to build using the currently checked out branch as if
+ # it was the Debian branch. This makes it easier for contributors to develop and
+ # test using feature/bugfix branches.

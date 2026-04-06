@@ -10,3 +10,4 @@
 0010-estimate-Convert-see-x-for-inspiration-log-message-t.patch
 0011-estimate-Inline-the-newPackageLine-function.patch
 0012-estimate-Only-color-the-in-NEW-as-hint.patch
+0013-Remove-extra-newlines-from-gpb.conf.patch
