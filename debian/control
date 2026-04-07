@@ -12,7 +12,7 @@ Build-Depends:
  debhelper-compat (= 13),
  dh-sequence-golang,
  git,
- golang-any (>= 2:1.21~),
+ golang-any (>= 2:1.24~),
  golang-github-charmbracelet-glamour-dev,
  golang-github-google-go-github-dev (>= 60),
  golang-github-gregjones-httpcache-dev,
