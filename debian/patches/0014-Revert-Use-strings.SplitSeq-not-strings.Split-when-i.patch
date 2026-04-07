@@ -1,0 +1,94 @@
+From: =?utf-8?b?T3R0byBLZWvDpGzDpGluZW4=?= <otto@debian.org>
+Date: Tue, 7 Apr 2026 17:17:01 +0800
+Subject: Revert "Use strings.SplitSeq, not strings.Split, when iterating"
+
+This reverts commit 4e65ee60f3b32c2a0ad7e8b6dd686d86b2d64585.
+---
+ description.go | 2 +-
+ estimate.go    | 7 ++++---
+ make.go        | 6 +++---
+ search.go      | 2 +-
+ 4 files changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/description.go b/description.go
+index 0a766e9..365297a 100644
+--- a/description.go
++++ b/description.go
+@@ -20,7 +20,7 @@ func reformatForControl(raw string) string {
+ 	next_prefix := ""
+ 	re := regexp.MustCompile(`^ \d+\. `)
+ 
+-	for line := range strings.SplitSeq(strings.TrimSpace(raw), "\n") {
++	for _, line := range strings.Split(strings.TrimSpace(raw), "\n") {
+ 		// Remove paddings that Glamour currently add to the end of each line
+ 		line = strings.TrimRight(line, " ")
+ 
+diff --git a/estimate.go b/estimate.go
+index 90e7a72..43a5e17 100644
+--- a/estimate.go
++++ b/estimate.go
+@@ -134,8 +134,9 @@ func getDirectDependencies(gopath, repodir, module string) (map[string]bool, err
+ 		return nil, fmt.Errorf("go list: args: %v; error: %w", cmd.Args, err)
+ 	}
+ 	out = bytes.TrimRight(out, "\n")
+-	deps := map[string]bool{}
+-	for line := range strings.SplitSeq(string(out), "\n") {
++	lines := strings.Split(string(out), "\n")
++	deps := make(map[string]bool, len(lines))
++	for _, line := range lines {
+ 		deps[line] = true
+ 	}
+ 	return deps, nil
+@@ -282,7 +283,7 @@ func estimate(importpath, revision string) error {
+ 	root := &Node{name: importpath}
+ 	nodes := make(map[string]*Node)
+ 	nodes[importpath] = root
+-	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
++	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+ 		// go mod graph outputs one line for each dependency. Each line
+ 		// consists of the dependency preceded by the module that
+ 		// imported it, separated by a single space. The module names
+diff --git a/make.go b/make.go
+index 38225cb..fd9dbcc 100644
+--- a/make.go
++++ b/make.go
+@@ -250,7 +250,7 @@ func (u *upstream) findMains(gopath, repo string) error {
+ 			log.Println("WARNING: In findMains:", fmt.Errorf("%q: %w", cmd.Args, err))
+ 		}
+ 	}
+-	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
++	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+ 		if strings.Contains(line, "/vendor/") ||
+ 			strings.Contains(line, "/Godeps/") ||
+ 			strings.Contains(line, "/samples/") ||
+@@ -290,7 +290,7 @@ func (u *upstream) findDependencies(gopath, repo string) error {
+ 	}
+ 
+ 	godependencies := make(map[string]bool)
+-	for p := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
++	for _, p := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+ 		if p == "" {
+ 			continue // skip separators between import types
+ 		}
+@@ -319,7 +319,7 @@ func (u *upstream) findDependencies(gopath, repo string) error {
+ 		return fmt.Errorf("go list std: (args: %v): %w", cmd.Args, err)
+ 	}
+ 
+-	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
++	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+ 		delete(godependencies, line)
+ 	}
+ 
+diff --git a/search.go b/search.go
+index 058fb22..aa830a6 100644
+--- a/search.go
++++ b/search.go
+@@ -61,7 +61,7 @@ func getGolangBinaries(opts ...getGolangBinariesOption) (map[string]debianPackag
+ 		if !strings.HasSuffix(pkg.Binary, "-dev") {
+ 			continue // skip -dbgsym packages etc.
+ 		}
+-		for importPath := range strings.SplitSeq(pkg.MetadataValue, ",") {
++		for _, importPath := range strings.Split(pkg.MetadataValue, ",") {
+ 			// XS-Go-Import-Path can be comma-separated and contain spaces.
+ 			golangBinaries[strings.TrimSpace(importPath)] = debianPackage{
+ 				binary: pkg.Binary,

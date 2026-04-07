@@ -11,3 +11,4 @@
 0011-estimate-Inline-the-newPackageLine-function.patch
 0012-estimate-Only-color-the-in-NEW-as-hint.patch
 0013-Remove-extra-newlines-from-gpb.conf.patch
+0014-Revert-Use-strings.SplitSeq-not-strings.Split-when-i.patch
