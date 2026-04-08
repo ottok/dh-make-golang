@@ -13,7 +13,7 @@ Build-Depends:
  dh-sequence-golang,
  git,
  golang-any (>= 2:1.21~),
- golang-github-charmbracelet-glamour-dev,
+ golang-github-charmbracelet-glamour-dev (>= 0.6.0),
  golang-github-google-go-github-dev (>= 60),
  golang-github-gregjones-httpcache-dev,
  golang-github-mattn-go-isatty-dev,
