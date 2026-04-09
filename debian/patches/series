@@ -12,3 +12,4 @@
 0012-estimate-Only-color-the-in-NEW-as-hint.patch
 0013-Remove-extra-newlines-from-gpb.conf.patch
 0014-Revert-Use-strings.SplitSeq-not-strings.Split-when-i.patch
+0015-Fix-invalid-syntax-in-gitlab-ci.yml-regression-from-.patch

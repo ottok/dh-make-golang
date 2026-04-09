@@ -1,0 +1,29 @@
+From: =?utf-8?b?T3R0byBLZWvDpGzDpGluZW4=?= <otto@debian.org>
+Date: Thu, 9 Apr 2026 17:35:31 +0800
+Subject: Fix invalid syntax in gitlab-ci.yml (regression from af68dbf7)
+
+In commit af68dbf7 an extra tab char had seeped in. Remove it, and also
+add YAML separator so that the gitlab-ci.yml syntax is just like the one
+in salsa-ci.yml.
+
+Fixes GitLab CI error:
+
+    Unable to run pipeline
+    `debian/gitlab-ci.yml`: (): found character that cannot start any token while scanning for the next token at line 4 column 1
+---
+ template.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/template.go b/template.go
+index 53ca173..c301ae1 100644
+--- a/template.go
++++ b/template.go
+@@ -534,7 +534,7 @@ include:
+ 	const compatContent = `# This file exists only for backwards compatibility and can be removed once all
+ # documentation and tools have migrated to use the new file name 'salsa-ci.yml'
+ include:
+-	- local: '/debian/salsa-ci.yml'
++  - local: '/debian/salsa-ci.yml'
+ `
+ 	fmt.Fprint(fCompat, compatContent)
+ 
